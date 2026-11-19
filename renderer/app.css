@@ -1,0 +1,25 @@
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px;background:#1f1f1f}
+.page{position:relative;background:#fff;box-shadow:0 0 0 1px #000;flex-shrink:0}
+.page canvas{display:block}
+.page svg.ov{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.textLayer{position:absolute;inset:0;overflow:clip;line-height:1;text-size-adjust:none;transform-origin:0 0;user-select:text}
+.textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
+.textLayer ::selection{background:rgba(120,120,120,.5)}
+.textLayer .hit{background:rgba(255,235,59,.55);border-radius:2px}
+.tool-draw .textLayer,.tool-rect .textLayer,.tool-highlight .textLayer,.tool-redact .textLayer,.tool-text .textLayer,.tool-erase .textLayer{pointer-events:none}
+.stage.tool-rect,.stage.tool-draw,.stage.tool-highlight,.stage.tool-redact{cursor:crosshair}
+.stage.tool-text{cursor:text}
+.stage.tool-erase{cursor:not-allowed}
+.thumb{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;border:1px solid transparent;border-radius:4px;cursor:pointer;margin-bottom:6px}
+.thumb:hover{background:var(--bg-3)}
+.thumb.sel{background:#444;border-color:var(--line-2)}
+.thumb canvas{background:#fff;max-width:100%;display:block}
+.thumb span{font-size:11px;color:var(--text-2)}
+.ptools{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.ptools .btn{padding:3px 7px;font-size:12px}
+.hits .item{font-size:12px}
+.sigpad{background:#fff;border:1px solid var(--line-2);border-radius:4px;touch-action:none;cursor:crosshair}
+.swatches{display:flex;gap:4px}
+.swatches button{width:20px;height:20px;border:1px solid var(--line-2);border-radius:3px;cursor:pointer;padding:0}
+.swatches button.on{outline:2px solid var(--accent);outline-offset:1px}
+.drop{outline:2px dashed var(--accent);outline-offset:-8px}

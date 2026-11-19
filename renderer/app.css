@@ -5,7 +5,7 @@
 .textLayer{position:absolute;inset:0;overflow:clip;line-height:1;text-size-adjust:none;transform-origin:0 0;user-select:text}
 .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
 .textLayer ::selection{background:rgba(120,120,120,.5)}
-.textLayer .hit{background:rgba(255,235,59,.55);border-radius:2px}
+.textLayer .hit{background:rgba(230,200,74,.5);border-radius:2px}
 .tool-draw .textLayer,.tool-rect .textLayer,.tool-highlight .textLayer,.tool-redact .textLayer,.tool-text .textLayer,.tool-erase .textLayer{pointer-events:none}
 .stage.tool-rect,.stage.tool-draw,.stage.tool-highlight,.stage.tool-redact{cursor:crosshair}
 .stage.tool-text{cursor:text}

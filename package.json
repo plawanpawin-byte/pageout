@@ -1,7 +1,7 @@
 {
   "name": "pageout",
   "productName": "Pageout",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read, annotate, organise and sign PDF files. Everything stays on your computer.",
   "main": "main.js",
   "author": "Lookout",

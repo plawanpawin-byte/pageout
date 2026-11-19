@@ -28,7 +28,7 @@ let sel = new Set();                // selected page ids (thumbnails)
 let curPage = 0;
 let zoom = 1.2;
 let tool = 'select';
-let color = '#ffd400';
+let color = '#e6c84a';
 let strokeW = 3;
 let fontSize = 0.022;               // fraction of page width
 let selAnn = null;                  // {pageId, annId}
@@ -39,7 +39,7 @@ let meta = { title: '', author: '' };
 let hits = [];
 
 const TOOLS = [['select', 'Select'], ['highlight', 'Highlight'], ['text', 'Text'], ['rect', 'Box'], ['draw', 'Pen'], ['redact', 'Redact'], ['sign', 'Sign'], ['erase', 'Erase']];
-const SWATCH = ['#ffd400', '#ff9500', '#ff5a5a', '#4c9eff', '#4cd964', '#111111', '#ffffff'];
+const SWATCH = ['#e6c84a', '#d98a5f', '#d96c6c', '#6c9ad9', '#74b27c', '#111111', '#ffffff'];
 
 // ---------- UI skeleton ----------
 const app = $('#app');
@@ -545,4 +545,3 @@ async function save() {
 }
 
 fullRender();
-window.__pageout = { get pages() { return pages; }, openBytes: async (name, bytes) => { pages = []; sources.clear(); fileName = name; const sid = await addSource(name, bytes); pages.push(...await pagesOf(sid)); fullRender(); }, setTool, setZoom, rasterPage, buildPdf: () => buildPdf(pages) };

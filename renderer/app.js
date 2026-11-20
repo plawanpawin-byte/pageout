@@ -525,7 +525,8 @@ async function exportPng() {
   const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
   const vp = pg.getViewport({ scale: 2, rotation: (pg.rotate + p.rot) % 360 });
   const cv = h('canvas'); cv.width = vp.width; cv.height = vp.height;
-  await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: cx, viewport: vp }).promise;
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   const r = await window.host.saveFile({ name: `page-${curPage + 1}.png`, filters: [['PNG image', ['png']]], data: new Uint8Array(await blob.arrayBuffer()) });
   if (r) toast('Saved ' + r.name);
@@ -543,7 +544,7 @@ async function rasterPage(p, list, scale = 2.5) {
   const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
   const vp = pg.getViewport({ scale, rotation: pg.rotate });
   const cv = h('canvas'); cv.width = vp.width; cv.height = vp.height;
-  const ctx = cv.getContext('2d');
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
   await pg.render({ canvasContext: ctx, viewport: vp }).promise;
   ctx.fillStyle = '#000';
   for (const a of list) ctx.fillRect(a.x * cv.width, a.y * cv.height, a.bw * cv.width, a.bh * cv.height);

@@ -112,7 +112,7 @@ async function openFiles(merge) {
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '' }; } catch { meta = { title: '', author: '' }; } }
-  sel.clear(); curPage = 0; selAnn = null;
+  sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
   fullRender();
 }
 
@@ -394,7 +394,7 @@ window.addEventListener('drop', async (e) => {
   const merge = pages.length > 0 && e.shiftKey;
   if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = fl[0].name; }
   for (const f of fl) { try { const sid = await addSource(f.name, new Uint8Array(await f.arrayBuffer())); pages.push(...await pagesOf(sid)); } catch (er) { toast('Cannot open ' + f.name); } }
-  sel.clear(); curPage = 0; fullRender();
+  sel.clear(); curPage = 0; fullRender(); if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
 });
 
 // ---------- signature ----------
@@ -610,8 +610,11 @@ async function save() {
     const bytes = await buildPdf(pages);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
-    if (r) { lastSave = r; toast('Saved ' + r.name); }
+    if (r) { savedSnap = snapshot(); lastSave = r; toast('Saved ' + r.name); }
   } catch (e) { toast('Save failed: ' + (e.message || e)); }
 }
 
 fullRender();
+
+let savedSnap = null;
+window.addEventListener('beforeunload', (e) => { if (pages.length && snapshot() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });

@@ -61,8 +61,8 @@ const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
 const search = h('input', { type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
-const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:70px', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-toolbar.append(bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), swatchBox, sizeIn, h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),
+const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
+toolbar.append(bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),
   btn('-', () => setZoom(zoom / 1.15), 'icon'), btn('+', () => setZoom(zoom * 1.15), 'icon'), btn('Fit', () => fitWidth()), h('span', { class: 'grow' }), search);
 function refreshSwatches() { swatchBox.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === color)); }
 refreshSwatches();
@@ -437,6 +437,7 @@ async function renderRight() {
   const t = h('input', { type: 'text', value: meta.title, oninput: () => (meta.title = t.value) });
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
+  right.append(h('h3', { text: 'Ink' }), swatchBox, h('label', { class: 'field', style: 'margin-top:10px' }, 'Line width', sizeIn));
   right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Export page as PNG', () => exportPng()), btn('Extract all text', () => extractText())));
   if (selAnn) {
     const p = pages.find((x) => x.id === selAnn.pageId); const an = p?.annots.find((x) => x.id === selAnn.annId);

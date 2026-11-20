@@ -1,6 +1,6 @@
 <p align="center"><img src="screenshots/banner.png" alt="Pageout" width="100%"></p>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.1 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.2 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pageout/releases/latest"><b>Download Pageout</b></a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -11,6 +11,12 @@ Pageout is a PDF reader and editor for Windows that works entirely on your compu
 **Made for:** People who handle PDFs every day: contracts to sign, reports to mark up, scans to tidy, documents to share without leaking private details.
 
 ![Pageout](screenshots/01-reading-a-pdf.png)
+
+**On this page:** [Screenshots](#see-it-in-action) · [Interface](#the-interface) · [Features](#everything-it-can-do) · [How to use it](#how-to-use-it) · [Shortcuts](#keyboard-shortcuts) · [Formats](#files-and-formats) · [Privacy](#private-by-design) · [Install](#install) · [Questions](#questions)
+
+## What is new in 1.0.2
+
+A refreshed interface: every toolbar button now has a clear line icon, the app's mark sits at the top left, controls share one height and spacing, panels line up in tidy grids, and the toolbar keeps every button reachable on smaller windows by switching less important buttons to icons.
 
 ## See it in action
 
@@ -43,6 +49,12 @@ One click scales the page to the window so long documents are comfortable to rea
 ![What you get out](screenshots/05-exported-page-image.png)
 
 The current page exported as a sharp PNG image, ready to drop into a slide, a message or another document.
+
+## The interface
+
+- **Top bar:** open, merge and save files, the markup tools (Select, Highlight, Text, Box, Pen, Redact, Sign, Erase), undo and redo, zoom, and text search.
+- **Left panel:** page buttons (rotate, delete, copy, move, blank, extract) above live thumbnails of every page.
+- **Right panel:** document title and author, ink colour and line width, export tools, and search results.
 
 ## Everything it can do
 
@@ -138,5 +150,15 @@ Not at the moment. Remove the password first with the tool that created the file
 ## About Lookout
 
 Pageout belongs to the **[Lookout](https://github.com/plawanpawin-byte/Lookout)** family: ten small, private Windows apps for documents and media, all with the same calm grey look and the same promise that your files stay yours. Install and update them together with the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
+
+- **[Chartout](https://github.com/plawanpawin-byte/chartout)**: flowcharts and diagrams
+- **[Branchout](https://github.com/plawanpawin-byte/branchout)**: mind maps and outlines
+- **[Planout](https://github.com/plawanpawin-byte/planout)**: plans and gantt timelines
+- **[Frameout](https://github.com/plawanpawin-byte/frameout)**: screen design and prototypes
+- **[Cutout](https://github.com/plawanpawin-byte/cutout)**: video editing on a timeline
+- **[Shiftout](https://github.com/plawanpawin-byte/shiftout)**: convert and compress media
+- **[Castout](https://github.com/plawanpawin-byte/castout)**: record your screen
+- **[Mendout](https://github.com/plawanpawin-byte/mendout)**: repair damaged media
+- **[Tuneout](https://github.com/plawanpawin-byte/tuneout)**: record and edit audio
 
 Released under the MIT License.

@@ -15,8 +15,8 @@
 .thumb.sel{background:#444;border-color:var(--line-2)}
 .thumb canvas{background:#fff;max-width:100%;display:block}
 .thumb span{font-size:11px;color:var(--text-2)}
-.ptools{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
-.ptools .btn{padding:3px 7px;font-size:12px}
+.ptools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.ptools .btn{justify-content:flex-start;font-size:12px}
 .hits .item{font-size:12px}
 .sigpad{background:#fff;border:1px solid var(--line-2);border-radius:4px;touch-action:none;cursor:crosshair}
 .swatches{display:flex;gap:4px}

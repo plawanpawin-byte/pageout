@@ -555,25 +555,26 @@ async function buildPdf(list) {
   const font = await out.embedFont(StandardFonts.Helvetica);
   const cache = new Map();
   for (const p of list) {
-    let page;
+    let page; let q = p;
     const redacts = p.annots.filter((a) => a.type === 'redact');
     if (!p.src) { page = out.addPage([p.w, p.h]); }
     else if (redacts.length) {
       const img = await out.embedPng(await rasterPage(p, redacts));
-      page = out.addPage([p.w, p.h]); page.drawImage(img, { x: 0, y: 0, width: p.w, height: p.h });
-      // raster is at intrinsic rotation, so mirror it on the new page
-      if (p.r0) page.setRotation(degrees(p.r0));
+      // the raster is already in displayed orientation: size the page to it and drop the intrinsic rotation
+      const [rw, rh] = dispDims(p);
+      page = out.addPage([rw, rh]); page.drawImage(img, { x: 0, y: 0, width: rw, height: rh });
+      q = { ...p, w: rw, h: rh, r0: 0 };
     } else {
       if (!cache.has(p.src)) cache.set(p.src, await PDFDocument.load(sources.get(p.src).bytes, { ignoreEncryption: true }));
       [page] = await out.copyPages(cache.get(p.src), [p.index]);
       out.addPage(page);
     }
     const base = page.getRotation().angle;
-    const box = p.src && !redacts.length ? page.getCropBox() : { x: 0, y: 0, width: p.w, height: p.h };
-    const [dw, dh] = dispDims(p);
+    const box = p.src && !redacts.length ? page.getCropBox() : { x: 0, y: 0, width: q.w, height: q.h };
+    const [dw, dh] = dispDims(q);
     for (const a of p.annots) {
       if (a.type === 'redact') continue;
-      const pt = (u, v) => dispToPdf({ ...p, w: box.width, h: box.height }, u, v, box);
+      const pt = (u, v) => dispToPdf({ ...q, w: box.width, h: box.height }, u, v, box);
       const svgPt = (u, v) => { const [x, y] = pt(u, v); return [x - box.x, box.y + box.height - y]; };
       const origin = { x: box.x, y: box.y + box.height };
       if (a.type === 'rect' || a.type === 'highlight' || a.type === 'cover') {
@@ -589,14 +590,14 @@ async function buildPdf(list) {
         const size = a.fs * dw; const lines = a.text.split('\n');
         lines.forEach((ln, i) => {
           const [x, y] = pt(a.x, a.y + (size * 0.8 + i * size * 1.2) / dh);
-          page.drawText(ln, { x, y, size, font, color: hex(a.color), rotate: degrees(p.r0) });
+          page.drawText(ln, { x, y, size, font, color: hex(a.color), rotate: degrees(q.r0) });
         });
       } else if (a.type === 'image') {
         const img = await out.embedPng(a.data);
         const [x, y] = pt(a.x, a.y + a.bh);
         const wPt = a.bw * dw, hPt = a.bh * dh;
         // lower-left corner of the displayed box, rotated with the page
-        page.drawImage(img, { x, y, width: wPt, height: hPt, rotate: degrees(p.r0) });
+        page.drawImage(img, { x, y, width: wPt, height: hPt, rotate: degrees(q.r0) });
       }
     }
     page.setRotation(degrees((base + p.rot) % 360));

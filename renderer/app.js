@@ -371,6 +371,7 @@ function mutateSel(fn) {
 }
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input,textarea')) return;
+  if (document.querySelector('.modal-back') || (!e.ctrlKey && !e.metaKey && e.target.matches('select,button,[contenteditable]'))) return;
   if ((e.key === 'Delete' || e.key === 'Backspace') && selAnn) { const p = pages.find((x) => x.id === selAnn.pageId); if (p) { commit(); p.annots = p.annots.filter((a) => a.id !== selAnn.annId); selAnn = null; redrawOverlays(); renderRight(); } }
   else if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.shiftKey ? redo() : undo(); e.preventDefault(); }
   else if (e.ctrlKey && e.key.toLowerCase() === 'y') { redo(); e.preventDefault(); }

@@ -59,7 +59,7 @@ const bMerge = btn('Merge', () => openFiles(true));
 const bSave = btn('Save as', () => save());
 const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
-const search = h('input', { type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
+const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
 toolbar.append(bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),

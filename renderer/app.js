@@ -38,7 +38,7 @@ let lastSave = null;                // {id,name}
 let meta = { title: '', author: '' };
 let hits = [];
 
-const TOOLS = [['select', 'Select'], ['highlight', 'Highlight'], ['text', 'Text'], ['rect', 'Box'], ['draw', 'Pen'], ['redact', 'Redact'], ['sign', 'Sign'], ['erase', 'Erase']];
+const TOOLS = [['select', 'Select'], ['highlight', 'Highlight'], ['text', 'Text'], ['rect', 'Box'], ['draw', 'Pen'], ['redact', 'Redact'], ['cover', 'Cover'], ['sign', 'Sign'], ['erase', 'Erase']];
 const SWATCH = ['#e6c84a', '#d98a5f', '#d96c6c', '#6c9ad9', '#74b27c', '#111111', '#ffffff'];
 
 // ---------- UI skeleton ----------
@@ -79,7 +79,16 @@ setTool('select');
 async function addSource(name, bytes) {
   const id = uid();
   const pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
-  sources.set(id, { name, bytes, pdf });
+  const ent = { name, bytes, pdf, fields: [], vals: {} };
+  sources.set(id, ent);
+  try {
+    const d = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    ent.fields = d.getForm().getFields().map((f) => {
+      const t = f.constructor.name;
+      const kind = /TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : /Dropdown|OptionList/.test(t) ? 'choice' : /Radio/.test(t) ? 'radio' : null;
+      return kind ? { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] } : null;
+    }).filter(Boolean);
+  } catch {}
   return id;
 }
 async function pagesOf(srcId) {
@@ -261,12 +270,12 @@ const P = (p, u, v, cw, ch) => { const [a, b] = rotFwd(u, v, p.rot); return [a *
 function drawAnn(p, a, cw, ch) {
   const g = sv('g'); g.dataset.aid = a.id;
   const sel_ = selAnn && selAnn.annId === a.id;
-  if (a.type === 'rect' || a.type === 'highlight' || a.type === 'redact' || a.type === 'image') {
+  if (a.type === 'rect' || a.type === 'highlight' || a.type === 'redact' || a.type === 'cover' || a.type === 'image') {
     const pts = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => P(p, u, v, cw, ch));
     const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
     const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, hh = Math.max(...ys) - y;
     if (a.type === 'image') g.append(sv('image', { href: a.data, x, y, width: w, height: hh, preserveAspectRatio: 'none' }));
-    else g.append(sv('rect', { x, y, width: w, height: hh, fill: a.type === 'rect' ? 'none' : a.type === 'redact' ? '#000' : a.color, 'fill-opacity': a.type === 'highlight' ? 0.4 : 1, stroke: a.type === 'rect' ? a.color : 'none', 'stroke-width': a.w || 2, style: a.type === 'highlight' ? 'mix-blend-mode:multiply' : '' }));
+    else g.append(sv('rect', { x, y, width: w, height: hh, fill: a.type === 'rect' ? 'none' : a.type === 'redact' ? '#000' : a.type === 'cover' ? '#fff' : a.color, 'fill-opacity': a.type === 'highlight' ? 0.4 : 1, stroke: a.type === 'rect' ? a.color : 'none', 'stroke-width': a.w || 2, style: a.type === 'highlight' ? 'mix-blend-mode:multiply' : '' }));
     if (sel_) { g.append(sv('rect', { x, y, width: w, height: hh, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3' })); const hd = sv('rect', { x: x + w - 5, y: y + hh - 5, width: 10, height: 10, fill: '#ddd', stroke: '#444', class: 'rs', style: 'cursor:nwse-resize' }); g.append(hd); }
   } else if (a.type === 'draw') {
     const d = a.pts.map(([u, v], i) => { const [x, y] = P(p, u, v, cw, ch); return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }).join(' ');
@@ -438,7 +447,21 @@ async function renderRight() {
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
   right.append(h('h3', { text: 'Ink' }), swatchBox, h('label', { class: 'field', style: 'margin-top:10px' }, 'Line width', sizeIn));
-  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Export page as PNG', () => exportPng()), btn('Extract all text', () => extractText())));
+  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Export page as PNG', () => exportPng()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed())));
+  const cur = pages[curPage]; const ent = cur && cur.src ? sources.get(cur.src) : null;
+  if (ent && ent.fields.length) {
+    right.append(h('h3', { text: 'Form fields' }));
+    const box = h('div', { class: 'col' });
+    for (const f of ent.fields) {
+      let inp;
+      if (f.kind === 'check') inp = h('input', { type: 'checkbox', checked: !!ent.vals[f.name], onchange: () => { ent.vals[f.name] = inp.checked; } });
+      else if (f.kind === 'text') inp = h('input', { type: 'text', value: ent.vals[f.name] || '', oninput: () => { ent.vals[f.name] = inp.value; } });
+      else { inp = h('select', { onchange: () => { ent.vals[f.name] = inp.value; } }, h('option', { value: '', text: '-' }), f.options.map((o) => h('option', { value: o, text: o, selected: ent.vals[f.name] === o }))); }
+      box.append(h('label', { class: 'field' }, f.name, inp));
+    }
+    box.append(btn('Fill form into page', () => applyForm(cur.src), 'primary'));
+    right.append(box);
+  }
   if (selAnn) {
     const p = pages.find((x) => x.id === selAnn.pageId); const an = p?.annots.find((x) => x.id === selAnn.annId);
     if (an) right.append(h('h3', { text: 'Selected ' + an.type }), h('div', { class: 'col' }, btn('Delete', () => { commit(); p.annots = p.annots.filter((x) => x.id !== an.id); selAnn = null; redrawOverlays(); renderRight(); }), an.type === 'text' ? btn('Edit text', () => editText(p, an)) : null));
@@ -450,6 +473,51 @@ async function renderRight() {
     right.append(list);
   }
   right.append(h('h3', { text: 'Privacy' }), h('div', { class: 'muted', text: 'Files are processed on this computer only. Nothing is uploaded.' }));
+}
+async function applyForm(srcId) {
+  const ent = sources.get(srcId);
+  try {
+    const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+    const form = d.getForm();
+    for (const f of ent.fields) {
+      const v = ent.vals[f.name]; if (v === undefined || v === '') continue;
+      const fld = form.getField(f.name);
+      if (f.kind === 'text') fld.setText(String(v));
+      else if (f.kind === 'check') (v ? fld.check() : fld.uncheck());
+      else fld.select(v);
+    }
+    form.flatten();
+    const bytes = new Uint8Array(await d.save());
+    ent.pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
+    ent.bytes = bytes; ent.fields = []; ent.vals = {};
+    fullRender(); toast('Form filled');
+  } catch (e) { toast('Form fill failed: ' + (e.message || e)); }
+}
+async function pdfToJpegPdf(bytes, q, scale) {
+  const doc = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+  const out = await PDFDocument.create();
+  for (let i = 1; i <= doc.numPages; i++) {
+    const pg = await doc.getPage(i); const vp = pg.getViewport({ scale });
+    const cv = h('canvas'); cv.width = vp.width; cv.height = vp.height;
+    const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', q));
+    const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+    const base = pg.getViewport({ scale: 1 });
+    out.addPage([base.width, base.height]).drawImage(img, { x: 0, y: 0, width: base.width, height: base.height });
+  }
+  out.setProducer('Pageout');
+  return new Uint8Array(await out.save());
+}
+async function saveCompressed() {
+  if (!pages.length) return;
+  try {
+    const raw = await buildPdf(pages);
+    const small = await pdfToJpegPdf(raw, 0.6, 1.4);
+    const name = (fileName ? fileName.replace(/\.pdf$/i, '') : 'document') + '-compressed.pdf';
+    const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: small });
+    if (r) toast(`Saved ${r.name}: ${(raw.length / 1024) | 0} KB to ${(small.length / 1024) | 0} KB (pages become images)`);
+  } catch (e) { toast('Compress failed: ' + (e.message || e)); }
 }
 async function exportPng() {
   const p = pages[curPage]; if (!p?.src) return;
@@ -507,10 +575,11 @@ async function buildPdf(list) {
       const pt = (u, v) => dispToPdf({ ...p, w: box.width, h: box.height }, u, v, box);
       const svgPt = (u, v) => { const [x, y] = pt(u, v); return [x - box.x, box.y + box.height - y]; };
       const origin = { x: box.x, y: box.y + box.height };
-      if (a.type === 'rect' || a.type === 'highlight') {
+      if (a.type === 'rect' || a.type === 'highlight' || a.type === 'cover') {
         const c = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => svgPt(u, v));
         const d = 'M' + c.map((q) => q.join(' ')).join(' L') + ' Z';
-        if (a.type === 'highlight') page.drawSvgPath(d, { ...origin, color: hex(a.color), opacity: 0.4, borderWidth: 0 });
+        if (a.type === 'cover') page.drawSvgPath(d, { ...origin, color: rgb(1, 1, 1), opacity: 1, borderWidth: 0 });
+        else if (a.type === 'highlight') page.drawSvgPath(d, { ...origin, color: hex(a.color), opacity: 0.4, borderWidth: 0 });
         else page.drawSvgPath(d, { ...origin, borderColor: hex(a.color), borderWidth: a.w * (dw / 800), color: undefined, opacity: 0, borderOpacity: 1 });
       } else if (a.type === 'draw') {
         const d = a.pts.map(([u, v], i) => (i ? 'L' : 'M') + svgPt(u, v).join(' ')).join(' ');

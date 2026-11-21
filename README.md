@@ -1,8 +1,10 @@
-<p align="center"><img src="screenshots/banner.png" alt="Pageout" width="100%"></p>
+<p align="center"><img src="screenshots/logo.png" alt="Pageout" width="128"></p>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.3 for Windows · Free · Offline · No account</p>
+<h1 align="center">Pageout</h1>
 
-<p align="center"><a href="https://github.com/plawanpawin-byte/pageout/releases/latest"><b>Download Pageout</b></a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.14 for Windows · Free · Offline · No account</p>
+
+<p align="center"><a href="https://github.com/plawanpawin-byte/pageout/releases/latest"><b>Download Pageout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
 ---
 
@@ -12,11 +14,51 @@ Pageout is a PDF reader and editor for Windows that works entirely on your compu
 
 ![Pageout](screenshots/01-reading-a-pdf.png)
 
-**On this page:** [Screenshots](#see-it-in-action) · [Interface](#the-interface) · [Features](#everything-it-can-do) · [How to use it](#how-to-use-it) · [Shortcuts](#keyboard-shortcuts) · [Formats](#files-and-formats) · [Privacy](#private-by-design) · [Install](#install) · [Questions](#questions)
+**On this page:** [In plain words](#in-plain-words) · [Who it is for](#who-it-is-for) · [Try it in 3 steps](#try-it-in-3-steps) · [Screenshots](#see-it-in-action) · [Features](#everything-it-can-do) · [How to use it](#how-to-use-it) · [Privacy](#private-by-design) · [Install](#install) · [Questions](#questions)
 
-## What is new in 1.0.3
+## In plain words
 
-A refreshed interface: every toolbar button now has a clear line icon, the app's mark sits at the top left, controls share one height and spacing, panels line up in tidy grids, and the toolbar keeps every button reachable on smaller windows by switching less important buttons to icons.
+Pageout is a program for working with **PDF files** (the kind of document you get from a bank, a school, a government office or a contract). It does what you would do with a pen and a printer, but on screen: you read the document, highlight sentences, write notes in the margin, draw or sign with the mouse, and then save the result as a **new PDF** that you can email.
+
+It can also tidy a document. You can rotate a sideways page, delete a page you do not need, move pages up or down, add a blank page, or pull a few pages out into their own file. It can **black out** private details such as an ID number so that the text is really removed from the file, not just covered.
+
+**Not for:** Pageout does not edit the original wording of a PDF (it is not a word processor), and it does not read scanned pages out loud or turn pictures of text into text.
+
+## Who it is for
+
+- **Students and teachers** who highlight and take notes on papers and worksheets.
+- **Anyone who signs documents**: draw your signature once, place it on a form, save the signed copy.
+- **Office workers** who need to remove a page, rotate a scan or hide a phone number before sending a PDF to someone.
+
+## Try it in 3 steps
+
+1. Click **Open**, choose any PDF, and scroll through it. Use the page list on the left to jump around.
+2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
+3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
+
+## What is new in 1.0.14
+
+A new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find Pageout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
+
+## In plain words
+
+Pageout is a program for working with **PDF files** (the kind of document you get from a bank, a school, a government office or a contract). It does what you would do with a pen and a printer, but on screen: you read the document, highlight sentences, write notes in the margin, draw or sign with the mouse, and then save the result as a **new PDF** that you can email.
+
+It can also tidy a document. You can rotate a sideways page, delete a page you do not need, move pages up or down, add a blank page, or pull a few pages out into their own file. It can **black out** private details such as an ID number so that the text is really removed from the file, not just covered.
+
+**Not for:** Pageout does not edit the original wording of a PDF (it is not a word processor), and it does not read scanned pages out loud or turn pictures of text into text.
+
+## Who it is for
+
+- **Students and teachers** who highlight and take notes on papers and worksheets.
+- **Anyone who signs documents**: draw your signature once, place it on a form, save the signed copy.
+- **Office workers** who need to remove a page, rotate a scan or hide a phone number before sending a PDF to someone.
+
+## Try it in 3 steps
+
+1. Click **Open**, choose any PDF, and scroll through it. Use the page list on the left to jump around.
+2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
+3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
 ## See it in action
 
@@ -129,7 +171,7 @@ Opens PDF files. Saves PDF. Exports a page as PNG and the document text as plain
 
 ## Install
 
-1. Open the [latest release](https://github.com/plawanpawin-byte/pageout/releases/latest) and download the file named **Pageout-Setup-** followed by the version number and **.exe**. You can also install it from the [Lookout launcher](https://github.com/${OWNER}/lookout-launcher), which keeps it up to date.
+1. Open the [latest release](https://github.com/plawanpawin-byte/pageout/releases/latest) and download the file named **Pageout-Setup-** followed by the version number and **.exe**. You can also install it from the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher), which keeps it up to date.
 2. Run the installer. It installs just for you, so it does not ask for administrator rights.
 3. Windows may show a blue **Windows protected your PC** screen because these installers are not signed with a paid certificate. Click **More info**, then **Run anyway**.
 4. Open Pageout from the Start menu.
@@ -147,18 +189,40 @@ No. You save to a new file; the original is never overwritten unless you choose 
 **Can it open password-protected PDFs?**  
 Not at the moment. Remove the password first with the tool that created the file.
 
+**Does Pageout change my original PDF?**  
+No. When you save, Pageout writes a new file. Your original stays as it was unless you choose to overwrite it yourself.
+
+**Is my signature stored somewhere?**  
+Only inside the files you sign and on your own computer. Nothing is sent anywhere.
+
+**What does "redact for real" mean?**  
+Many programs only draw a black box over text, and the text can still be copied from underneath. Pageout removes the text and image underneath, so it cannot be recovered.
+
+**Does Pageout change my original PDF?**  
+No. When you save, Pageout writes a new file. Your original stays as it was unless you choose to overwrite it yourself.
+
+**Is my signature stored somewhere?**  
+Only inside the files you sign and on your own computer. Nothing is sent anywhere.
+
+**What does "redact for real" mean?**  
+Many programs only draw a black box over text, and the text can still be copied from underneath. Pageout removes the text and image underneath, so it cannot be recovered.
+
 ## About Lookout
 
-Pageout belongs to the **[Lookout](https://github.com/plawanpawin-byte/Lookout)** family: ten small, private Windows apps for documents and media, all with the same calm grey look and the same promise that your files stay yours. Install and update them together with the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
+Pageout is part of **[Lookout](https://github.com/plawanpawin-byte/Lookout)**: ten small, private Windows apps for documents and media that share one look and one promise, that your files stay on your computer. Install and update them together with the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
 
-- **[Chartout](https://github.com/plawanpawin-byte/chartout)**: flowcharts and diagrams
-- **[Branchout](https://github.com/plawanpawin-byte/branchout)**: mind maps and outlines
-- **[Planout](https://github.com/plawanpawin-byte/planout)**: plans and gantt timelines
-- **[Frameout](https://github.com/plawanpawin-byte/frameout)**: screen design and prototypes
-- **[Cutout](https://github.com/plawanpawin-byte/cutout)**: video editing on a timeline
-- **[Shiftout](https://github.com/plawanpawin-byte/shiftout)**: convert and compress media
-- **[Castout](https://github.com/plawanpawin-byte/castout)**: record your screen
-- **[Mendout](https://github.com/plawanpawin-byte/mendout)**: repair damaged media
-- **[Tuneout](https://github.com/plawanpawin-byte/tuneout)**: record and edit audio
+| | App | What it is for | Code |
+| --- | --- | --- | --- |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/lookout-launcher/main/build/icon.png" width="32" alt="Lookout"> | **Lookout** | Install, open and update all the apps below | [GitHub](https://github.com/plawanpawin-byte/lookout-launcher) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/pageout/main/build/icon.png" width="32" alt="Pageout"> | **Pageout** | Read, annotate and sign PDFs | [GitHub](https://github.com/plawanpawin-byte/pageout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/chartout/main/build/icon.png" width="32" alt="Chartout"> | **Chartout** | Flowcharts, org charts and diagrams | [GitHub](https://github.com/plawanpawin-byte/chartout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/branchout/main/build/icon.png" width="32" alt="Branchout"> | **Branchout** | Mind maps and outlines | [GitHub](https://github.com/plawanpawin-byte/branchout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/planout/main/build/icon.png" width="32" alt="Planout"> | **Planout** | Project plans and Gantt timelines | [GitHub](https://github.com/plawanpawin-byte/planout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/frameout/main/build/icon.png" width="32" alt="Frameout"> | **Frameout** | App and web screen design with click-through prototypes | [GitHub](https://github.com/plawanpawin-byte/frameout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/cutout/main/build/icon.png" width="32" alt="Cutout"> | **Cutout** | Video editing on a timeline | [GitHub](https://github.com/plawanpawin-byte/cutout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/shiftout/main/build/icon.png" width="32" alt="Shiftout"> | **Shiftout** | Convert and compress video and audio, make GIFs | [GitHub](https://github.com/plawanpawin-byte/shiftout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/castout/main/build/icon.png" width="32" alt="Castout"> | **Castout** | Record your screen | [GitHub](https://github.com/plawanpawin-byte/castout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/mendout/main/build/icon.png" width="32" alt="Mendout"> | **Mendout** | Check and repair damaged video, audio, pictures and PDFs | [GitHub](https://github.com/plawanpawin-byte/mendout) |
+| <img src="https://raw.githubusercontent.com/plawanpawin-byte/tuneout/main/build/icon.png" width="32" alt="Tuneout"> | **Tuneout** | Record and edit audio | [GitHub](https://github.com/plawanpawin-byte/tuneout) |
 
 Released under the MIT License.

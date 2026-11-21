@@ -1,4 +1,4 @@
-.stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px;background:#1f1f1f}
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px;background:var(--stage)}
 .page{position:relative;background:#fff;box-shadow:0 0 0 1px #000;flex-shrink:0}
 .page canvas{display:block}
 .page svg.ov{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
@@ -12,7 +12,7 @@
 .stage.tool-erase{cursor:not-allowed}
 .thumb{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;border:1px solid transparent;border-radius:4px;cursor:pointer;margin-bottom:6px}
 .thumb:hover{background:var(--bg-3)}
-.thumb.sel{background:#444;border-color:var(--line-2)}
+.thumb.sel{background:var(--accent-soft);border-color:var(--accent)}
 .thumb canvas{background:#fff;max-width:100%;display:block}
 .thumb span{font-size:11px;color:var(--text-2)}
 .ptools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}

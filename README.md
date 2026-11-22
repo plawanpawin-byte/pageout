@@ -40,6 +40,8 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 
 **Important fix:** in 1.0.20, saving a PDF that contained Thai text failed with an error. That is fixed. If you installed 1.0.20, please update.
 
+**Start screen in categories.** The quick tools are now grouped (Popular, Write and fill, Pages, Protect, Convert, Tools), so the start screen shows a few at a time instead of one long list.
+
 **Thai interface.** Press the **ไทย / EN** button at the top right to switch every menu, button and message between Thai and English. PDFout starts in Thai on a Thai Windows.
 
 **Organise more.** **Crop** the margins (or trim white edges automatically), change the **paper size** (A4, Letter and more), **insert pages** from another PDF or picture, **split** a document into several files, reverse the order, select odd or even pages, find and delete empty pages, and **drag thumbnails** to reorder pages.

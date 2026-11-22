@@ -64,7 +64,7 @@ const bRedo = btn('Redo', () => redo());
 const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-const TABS = [['home', 'Home'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['tools', 'Tools'], ['view', 'View']];
+const TABS = [['home', 'Home'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['convert', 'Convert'], ['tools', 'Tools'], ['view', 'View']];
 let ribbonTab = 'home', ribbonOpen = true;
 const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
@@ -80,14 +80,16 @@ function drawRibbon() {
   if (!ribbonOpen) return;
   const T = (k, n) => rb(n, () => setTool(k), { on: tool === k, dis: none });
   const sw = h('div', { class: 'rgroup rsw' }, swatchBox, h('div', { class: 'rw' }, h('span', { text: 'Line' }), sizeIn));
+  const zoomG = rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }));
   const groups = {
-    home: [rg(rb('Open', () => openFiles(false)), rb('Merge', () => openFiles(true), { dis: none, tip: 'Combine another PDF into this one' }), rb('Save as', () => save(), { dis: none })),
-      rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text')), rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }))],
+    home: [rg(rb('Open', () => openFiles(false)), rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Save as', () => save(), { dis: none }), rb('Print', () => printDoc(), { dis: none })),
+      rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text')), zoomG],
     comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text'), T('rect', 'Box'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
     organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none }))],
-    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }))],
-    tools: [rg(rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Extract all text', () => extractText(), { dis: none }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save compressed copy' }), rb('Merge', () => openFiles(true), { dis: none, tip: 'Combine another PDF into this one' }))],
-    view: [rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }))],
+    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), rb('Watermark', () => openWatermark(), { dis: none }))],
+    convert: [rg(rb('OCR', () => openOcr(), { dis: none, tip: 'Recognise text in scans and pictures' }), rb('Extract all text', () => extractText(), { dis: none }), rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Export images', () => exportImages(), { dis: none, tip: 'Save every page as a PNG picture' }), rb('From images', () => createFromImages(), { tip: 'Create a PDF from pictures' }))],
+    tools: [rg(rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save a smaller copy' }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Page numbers', () => openPageNumbers(), { dis: none }), rb('Form data', () => openFormData(), { dis: none, tip: 'Fill form fields from an FDF or XFDF file' }), rb('Print', () => printDoc(), { dis: none }))],
+    view: [zoomG],
   };
   ribbon.append(...groups[ribbonTab].flatMap((g, i) => (i ? [h('span', { class: 'rsep' }), g] : [g])));
 }
@@ -124,6 +126,13 @@ const QUICK = [
   ['Combine files', 'Join several PDFs into one.', '<rect x="3" y="4" width="8" height="10" rx="1"/><rect x="13" y="10" width="8" height="10" rx="1"/><path d="M11 9h2"/>', async () => { await openFiles(false); }],
   ['Compress', 'Make the file smaller.', '<path d="M12 3v7m0 0l-3-3m3 3l3-3M12 21v-7m0 0l-3 3m3-3l3 3"/>', () => openThen(() => saveCompressed())],
   ['Export text', 'Copy out all the words.', '<path d="M5 6h14M12 6v13M9 19h6"/>', () => openThen(() => extractText())],
+  ['Recognise text (OCR)', 'Turn scans and photos into real text.', '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 9h8M8 12h8M8 15h5"/>', () => openThen(() => openOcr())],
+  ['Images to PDF', 'Make a PDF from pictures.', '<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M5 18l5-5 3 3 3-3 3 3"/>', () => createFromImages()],
+  ['Export images', 'Save every page as a picture.', '<path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/>', () => openThen(() => exportImages())],
+  ['Watermark', 'Stamp text across the pages.', '<path d="M12 3c3 4 6 7 6 10a6 6 0 01-12 0c0-3 3-6 6-10z"/>', () => openThen(() => openWatermark())],
+  ['Page numbers', 'Number every page.', '<path d="M6 4h12v16H6z"/><path d="M10 15h4"/>', () => openThen(() => openPageNumbers())],
+  ['Print', 'Send the document to a printer.', '<path d="M7 8V3h10v5M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>', () => openThen(() => printDoc())],
+  ['Fill form', 'Open a PDF form, or load FDF / XFDF data.', '<path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h4"/>', () => openThen(() => openFormData())],
   ['Blank PDF', 'Start from an empty page.', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M12 11v6M9 14h6"/>', () => createBlank()],
 ];
 const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
@@ -164,7 +173,8 @@ async function addSource(name, bytes) {
     const d = await PDFDocument.load(bytes, { ignoreEncryption: true });
     ent.fields = d.getForm().getFields().map((f) => {
       const t = f.constructor.name;
-      const kind = /TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : /Dropdown|OptionList/.test(t) ? 'choice' : /Radio/.test(t) ? 'radio' : null;
+      // the bundled pdf-lib is minified, so class names are unreliable: detect the field type by what it can do
+      const kind = typeof f.setText === 'function' ? 'text' : typeof f.check === 'function' ? 'check' : typeof f.isOffToggleable === 'function' ? 'radio' : (typeof f.isEditable === 'function' || typeof f.isMultiselect === 'function') ? 'choice' : (/TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : null);
       return kind ? { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] } : null;
     }).filter(Boolean);
   } catch {}
@@ -180,19 +190,79 @@ async function pagesOf(srcId) {
   }
   return out;
 }
-async function openFiles(merge, preset) {
-  const files = preset || await window.host.openFiles({ multi: true, filters: [['PDF', ['pdf']]] });
-  if (!files.length) return;
-  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = files[0].name; lastSave = null; }
-  for (const f of files) {
+const IMG_RE = /\.(png|jpe?g|webp|bmp|gif)$/i, FORM_RE = /\.(xfdf|fdf)$/i;
+const OPEN_FILTERS = [['Common files', ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'fdf', 'xfdf']], ['PDF files', ['pdf']], ['Images', ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']], ['FDF / XFDF form data', ['fdf', 'xfdf']]];
+const toBytes = (d) => (d instanceof Uint8Array ? d : new Uint8Array(d));
+async function imageToPdf(bytes, isJpg) {
+  const d = await PDFDocument.create();
+  let im, w, hh;
+  if (isJpg) { try { im = await d.embedJpg(bytes); w = im.width; hh = im.height; } catch { im = null; } }
+  if (!im) {
+    const bmp = await createImageBitmap(new Blob([bytes]));
+    const cv = h('canvas'); cv.width = bmp.width; cv.height = bmp.height; cv.getContext('2d').drawImage(bmp, 0, 0);
+    const png = new Uint8Array(await (await new Promise((r) => cv.toBlob(r, 'image/png'))).arrayBuffer());
+    im = await d.embedPng(png); w = bmp.width; hh = bmp.height;
+  }
+  const k = Math.min(1, 1100 / Math.max(w, hh)) * 0.75; // pixels to points, capped to a sensible page size
+  const pg = d.addPage([w * k, hh * k]); pg.drawImage(im, { x: 0, y: 0, width: w * k, height: hh * k });
+  return new Uint8Array(await d.save());
+}
+const unPdf = (s) => s.replace(/\\([()\\])/g, '$1').replace(/\\n/g, '\n');
+function parseFormData(name, bytes) {
+  const text = new TextDecoder('utf-8').decode(bytes), out = {};
+  if (/\.xfdf$/i.test(name)) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    const walk = (el, prefix) => {
+      for (const f of [...el.children].filter((c) => c.localName === 'field')) {
+        const nm = prefix ? prefix + '.' + f.getAttribute('name') : f.getAttribute('name');
+        const v = [...f.children].find((c) => c.localName === 'value');
+        if (v) out[nm] = v.textContent; walk(f, nm);
+      }
+    };
+    for (const root of [...doc.getElementsByTagName('fields')]) walk(root, '');
+  } else {
+    const re1 = /\/T\s*\(((?:\\.|[^)\\])*)\)\s*\/V\s*(\((?:\\.|[^)\\])*\)|\/[^\s/>\]]+)/g, re2 = /\/V\s*(\((?:\\.|[^)\\])*\)|\/[^\s/>\]]+)\s*\/T\s*\(((?:\\.|[^)\\])*)\)/g;
+    const val = (s) => (s[0] === '(' ? unPdf(s.slice(1, -1)) : s.slice(1));
+    let m; while ((m = re1.exec(text))) out[unPdf(m[1])] = val(m[2]);
+    while ((m = re2.exec(text))) out[unPdf(m[2])] = val(m[1]);
+  }
+  return out;
+}
+function applyFormData(map) {
+  const ent = [...sources.values()][0]; if (!ent) return 0;
+  let n = 0;
+  for (const [k, v] of Object.entries(map)) {
+    const f = ent.fields.find((x) => x.name === k) || ent.fields.find((x) => k.endsWith('.' + x.name) || x.name.endsWith('.' + k));
+    if (!f) continue;
+    ent.vals[f.name] = f.kind === 'check' ? /^(yes|on|true|1)$/i.test(v) : v; n++;
+  }
+  return n;
+}
+async function loadFiles(files, merge) {
+  if (!files || !files.length) return;
+  const forms = files.filter((f) => FORM_RE.test(f.name)), docs = files.filter((f) => !FORM_RE.test(f.name));
+  if (!docs.length) {
+    if (!pages.length) { toast('Open a PDF first, then load its form data (FDF / XFDF)'); return; }
+    let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data)));
+    toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); return;
+  }
+  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = docs[0].name.replace(IMG_RE, '.pdf'); lastSave = null; }
+  for (const f of docs) {
     try {
-      const sid = await addSource(f.name, new Uint8Array(f.data));
+      let bytes = toBytes(f.data);
+      if (IMG_RE.test(f.name)) bytes = await imageToPdf(bytes, /\.jpe?g$/i.test(f.name));
+      const sid = await addSource(f.name.replace(IMG_RE, '.pdf'), bytes);
       pages.push(...await pagesOf(sid));
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '' }; } catch { meta = { title: '', author: '' }; } }
   sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
+  for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
   fullRender();
+}
+async function openFiles(merge, preset) {
+  const files = preset || await window.host.openFiles({ multi: true, filters: OPEN_FILTERS });
+  await loadFiles(files, merge);
 }
 
 // ---------- undo ----------
@@ -365,7 +435,7 @@ function drawAnn(p, a, cw, ch) {
   } else if (a.type === 'text') {
     const [bw] = dispDims(p); const fs = a.fs * bw * zoom * (p.rot % 180 ? 1 : 1);
     const [x, y] = P(p, a.x, a.y, cw, ch);
-    const t = sv('text', { x: 0, y: 0, fill: a.color, 'font-size': fs, 'font-family': 'Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', transform: `translate(${x} ${y}) rotate(${p.rot})`, style: 'white-space:pre' });
+    const t = sv('text', { x: 0, y: 0, fill: a.color, 'fill-opacity': a.op == null ? 1 : a.op, 'font-size': fs, 'font-family': '"Noto Sans Thai", Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', 'text-anchor': a.mid ? 'middle' : 'start', transform: `translate(${x} ${y}) rotate(${p.rot + (a.ang || 0)})`, style: 'white-space:pre' });
     a.text.split('\n').forEach((ln, i) => { const s = sv('tspan', { x: 0, dy: i ? fs * 1.2 : 0 }); s.textContent = ln || ' '; t.append(s); });
     g.append(t);
     if (sel_) { requestAnimationFrame(() => { try { const b = t.getBBox(); const m = sv('rect', { x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 6, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3', transform: t.getAttribute('transform') }); g.append(m); } catch {} }); }
@@ -475,12 +545,187 @@ stage.addEventListener('wheel', (e) => { if (e.ctrlKey) { e.preventDefault(); se
 window.addEventListener('dragover', (e) => { e.preventDefault(); });
 window.addEventListener('drop', async (e) => {
   e.preventDefault();
-  const fl = [...e.dataTransfer.files].filter((f) => /\.pdf$/i.test(f.name)); if (!fl.length) return;
-  const merge = pages.length > 0 && e.shiftKey;
-  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = fl[0].name; }
-  for (const f of fl) { try { const sid = await addSource(f.name, new Uint8Array(await f.arrayBuffer())); pages.push(...await pagesOf(sid)); } catch (er) { toast('Cannot open ' + f.name); } }
-  sel.clear(); curPage = 0; fullRender(); if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
+  const fl = [...e.dataTransfer.files].filter((f) => /\.(pdf|png|jpe?g|webp|bmp|gif|xfdf|fdf)$/i.test(f.name)); if (!fl.length) return;
+  const files = []; for (const f of fl) files.push({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) });
+  await loadFiles(files, pages.length > 0 && e.shiftKey);
 });
+
+
+// ---------- OCR (text recognition, runs fully offline) ----------
+let ocrWorker = null, ocrLangNow = '', ocrKeep = true, ocrStop = false;
+const OCR_BASE = () => new URL('./vendor/ocr', location.href).href;
+async function getOcr(lang, onLog) {
+  if (ocrWorker && ocrLangNow === lang) { ocrWorker._log = onLog; return ocrWorker; }
+  if (ocrWorker) { try { await ocrWorker.terminate(); } catch {} ocrWorker = null; }
+  const base = OCR_BASE(); let holder;
+  const w = await Tesseract.createWorker(lang, 1, { workerPath: base + '/worker.min.js', corePath: base, langPath: base, gzip: false, workerBlobURL: false, cacheMethod: 'none', logger: (m) => { if (holder && holder._log) holder._log(m); } });
+  holder = w; w._log = onLog; ocrWorker = w; ocrLangNow = lang; return w;
+}
+async function pageCanvas(p, scale = 2) {
+  const cv = h('canvas');
+  if (!p.src) { const [bw, bh] = dispDims(p); const [dw, dh] = p.rot % 180 ? [bh, bw] : [bw, bh]; cv.width = Math.round(dw * scale); cv.height = Math.round(dh * scale); const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); return cv; }
+  const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
+  const vp = pg.getViewport({ scale, rotation: (pg.rotate + p.rot) % 360 });
+  cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({ canvasContext: g, viewport: vp }).promise;
+  return cv;
+}
+const linesOf = (data) => {
+  if (data.lines && data.lines.length) return data.lines;
+  const out = []; for (const b of data.blocks || []) for (const pa of b.paragraphs || []) for (const l of pa.lines || []) out.push(l);
+  return out;
+};
+const cleanOcr = (t, lang) => { let s = t.replace(/\s+/g, ' ').trim(); if (/tha/.test(lang)) s = s.replace(/(?<=[฀-๿])\s+(?=[฀-๿])/g, ''); return s; };
+async function ocrPage(p, lang, onLog) {
+  const w = await getOcr(lang, onLog);
+  const cv = await pageCanvas(p, 2);
+  const res = await w.recognize(cv, {}, { blocks: true });
+  const lines = [];
+  for (const l of linesOf(res.data)) {
+    const t = cleanOcr(l.text || '', lang); const b = l.bbox; if (!t || !b || (l.confidence != null && l.confidence < 25)) continue;
+    lines.push({ t, x0: b.x0 / cv.width, y0: b.y0 / cv.height, x1: b.x1 / cv.width, y1: b.y1 / cv.height, conf: Math.round(l.confidence || 0) });
+  }
+  return { lang, lines };
+}
+const ocrText = (idx) => idx.map((i) => `--- Page ${i + 1} ---\n` + ((pages[i].ocr && pages[i].ocr.lines.map((l) => l.t).join('\n')) || '')).join('\n\n');
+function openOcr() {
+  if (!pages.length) { toast('Open a PDF or an image first'); return; }
+  const lang = h('select', {}, h('option', { value: 'eng+tha', text: 'English + Thai' }), h('option', { value: 'eng', text: 'English' }), h('option', { value: 'tha', text: 'Thai (ไทย)' }));
+  const scope = h('select', {}, h('option', { value: 'all', text: 'All pages' }), h('option', { value: 'cur', text: 'Current page only' }));
+  const bar = h('div', { class: 'progress' }, h('i')); const msg = h('div', { class: 'muted', text: 'Recognition runs on this computer. Nothing is uploaded. The first run takes a few seconds to start.' });
+  let back; let busy = false;
+  const close = () => { ocrStop = true; back.remove(); };
+  const go = btn('Start OCR', async () => {
+    if (busy) return; busy = true; ocrStop = false; go.disabled = true;
+    const idx = scope.value === 'cur' ? [curPage] : pages.map((_, i) => i);
+    commit(); const done = [];
+    try {
+      for (let k = 0; k < idx.length; k++) {
+        if (ocrStop) break;
+        msg.textContent = `Reading page ${idx[k] + 1} (${k + 1} of ${idx.length})...`;
+        bar.firstChild.style.width = Math.round((k / idx.length) * 100) + '%';
+        const r = await ocrPage(pages[idx[k]], lang.value, (m) => { if (m.status === 'recognizing text') bar.firstChild.style.width = Math.round(((k + m.progress) / idx.length) * 100) + '%'; });
+        pages[idx[k]].ocr = r; done.push(idx[k]);
+      }
+    } catch (e) { toast('OCR failed: ' + (e.message || e)); }
+    busy = false; if (back.isConnected) { back.remove(); } if (done.length) { renderStatus(); showOcrResult(done); }
+  }, 'primary');
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'Recognise text (OCR)' }),
+    h('div', { class: 'muted', text: 'Turns pictures of text, such as scans and photos, into real text that you can search, copy and edit.' }),
+    h('label', { class: 'field' }, 'Language', lang), h('label', { class: 'field' }, 'Pages', scope), bar, msg,
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Close', close), go)));
+  document.body.append(back);
+}
+function showOcrResult(idx) {
+  const total = idx.reduce((s, i) => s + (pages[i].ocr ? pages[i].ocr.lines.length : 0), 0);
+  const ta = h('textarea', { rows: 14, style: 'width:560px;font-family:inherit' }); ta.value = total ? ocrText(idx) : 'No text was found. Try another language, or a sharper picture.';
+  const keep = h('input', { type: 'checkbox', checked: ocrKeep, onchange: () => { ocrKeep = keep.checked; } });
+  let back;
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: `Recognised ${total} line${total === 1 ? '' : 's'} on ${idx.length} page${idx.length === 1 ? '' : 's'}` }),
+    ta,
+    h('label', { class: 'row' }, keep, h('span', { text: 'Keep this text inside the PDF when I save (makes it searchable)' })),
+    h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      btn('Copy text', async () => { try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch { ta.select(); document.execCommand('copy'); toast('Copied'); } }),
+      btn('Save as .txt', async () => { const r = await window.host.saveFile({ name: (fileName || 'document').replace(/\.pdf$/i, '') + '-text.txt', filters: [['Text', ['txt']]], data: new TextEncoder().encode(ta.value) }); if (r) toast('Saved ' + r.name); }),
+      btn('Edit as text boxes', () => { ocrToBoxes(idx); back.remove(); }, 'primary'),
+      h('span', { class: 'grow' }), btn('Done', () => back.remove()))));
+  document.body.append(back);
+}
+// replaces the picture of each recognised line with a white patch plus an editable text box
+function ocrToBoxes(idx) {
+  commit(); let n = 0;
+  for (const i of idx) {
+    const p = pages[i]; if (!p.ocr) continue;
+    const [bw, bh] = dispDims(p); const dispH = p.rot % 180 ? bw : bh;
+    for (const l of p.ocr.lines) {
+      const c1 = rotInv(l.x0, l.y0, p.rot), c2 = rotInv(l.x1, l.y1, p.rot);
+      const x = Math.min(c1[0], c2[0]), y = Math.min(c1[1], c2[1]), w = Math.abs(c1[0] - c2[0]), hh = Math.abs(c1[1] - c2[1]);
+      const padU = 0.002;
+      p.annots.push(mkAnn({ type: 'cover', x: x - padU, y: y - padU, bw: w + padU * 2, bh: hh + padU * 2, color: '#ffffff' }));
+      const fs = ((l.y1 - l.y0) * dispH * 0.8) / bw;
+      p.annots.push(mkAnn({ type: 'text', x: c1[0] < c2[0] ? x : x + w, y: c1[1] < c2[1] ? y : y + hh, text: l.t, fs, color: '#000000' }));
+      n++;
+    }
+  }
+  redrawOverlays(); renderRight(); toast(`${n} text box${n === 1 ? '' : 'es'} added. Double-click one to edit it.`);
+}
+
+// ---------- print, export images, watermark, page numbers ----------
+async function renderedPdfCanvases(scale) {
+  const pdf = await pdfjs.getDocument({ data: (await buildPdf(pages)).slice(), isEvalSupported: false }).promise; const out = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pg = await pdf.getPage(i); const vp = pg.getViewport({ scale });
+    const cv = h('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise; out.push(cv);
+  }
+  return out;
+}
+async function printDoc(dry) {
+  if (!pages.length) { toast('Open a PDF first'); return 0; }
+  toast('Preparing to print...');
+  const cvs = await renderedPdfCanvases(1.6);
+  const root = h('div', { id: 'printroot' }, cvs.map((c) => h('img', { src: c.toDataURL('image/jpeg', 0.92) })));
+  document.body.append(root); document.body.classList.add('printing');
+  const clean = () => { root.remove(); document.body.classList.remove('printing'); };
+  if (dry) { clean(); return cvs.length; }
+  window.addEventListener('afterprint', clean, { once: true }); setTimeout(() => window.print(), 50); setTimeout(clean, 120000);
+  return cvs.length;
+}
+async function exportImages() {
+  if (!pages.length) { toast('Open a PDF first'); return; }
+  try {
+    const cvs = await renderedPdfCanvases(2); const items = [];
+    for (const c of cvs) items.push(new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/png'))).arrayBuffer()));
+    const n = await window.host.saveSeq({ name: (fileName || 'document').replace(/\.pdf$/i, '') + '.png', items });
+    if (n) toast(`Saved ${n} image${n === 1 ? '' : 's'}`);
+  } catch (e) { toast('Export failed: ' + (e.message || e)); }
+}
+function openWatermark() {
+  if (!pages.length) { toast('Open a PDF first'); return; }
+  const txt = h('input', { type: 'text', value: 'CONFIDENTIAL', style: 'width:100%' });
+  const size = h('input', { type: 'range', min: 3, max: 16, value: 6 }), op = h('input', { type: 'range', min: 8, max: 70, value: 22 });
+  const col = h('select', {}, [['#d96c6c', 'Red'], ['#808080', 'Grey'], ['#6c9ad9', 'Blue'], ['#111111', 'Black']].map(([v, n]) => h('option', { value: v, text: n })));
+  const ang = h('select', {}, h('option', { value: '-45', text: 'Diagonal' }), h('option', { value: '0', text: 'Straight' }));
+  const scope = h('select', {}, h('option', { value: 'all', text: 'All pages' }), h('option', { value: 'cur', text: 'Current page only' }));
+  let back;
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'Watermark' }),
+    h('label', { class: 'field' }, 'Text', txt), h('label', { class: 'field' }, 'Size', size), h('label', { class: 'field' }, 'Strength', op),
+    h('label', { class: 'field' }, 'Colour', col), h('label', { class: 'field' }, 'Direction', ang), h('label', { class: 'field' }, 'Pages', scope),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Remove watermarks', () => { commit(); pages.forEach((p) => { p.annots = p.annots.filter((x) => x.tag !== 'wm'); }); redrawOverlays(); back.remove(); toast('Watermarks removed'); }), btn('Cancel', () => back.remove()),
+      btn('Add', () => {
+        const text = txt.value.trim(); if (!text) return; commit();
+        const idx = scope.value === 'cur' ? [curPage] : pages.map((_, i) => i);
+        for (const i of idx) { const p = pages[i]; const [bw, bh] = dispDims(p); const fs = size.value / 100; p.annots = p.annots.filter((x) => x.tag !== 'wm'); p.annots.push(mkAnn({ type: 'text', tag: 'wm', mid: true, text, fs, x: 0.5, y: 0.5 - (fs * bw * 0.5) / bh, color: col.value, op: op.value / 100, ang: +ang.value })); }
+        redrawOverlays(); back.remove(); toast('Watermark added');
+      }, 'primary'))));
+  document.body.append(back);
+}
+function openPageNumbers() {
+  if (!pages.length) { toast('Open a PDF first'); return; }
+  const fmt = h('select', {}, h('option', { value: 'n', text: '1, 2, 3' }), h('option', { value: 'pn', text: 'Page 1' }), h('option', { value: 'nn', text: '1 / 4' }), h('option', { value: 'pnn', text: 'Page 1 of 4' }));
+  const pos = h('select', {}, h('option', { value: 'bc', text: 'Bottom centre' }), h('option', { value: 'br', text: 'Bottom right' }), h('option', { value: 'tc', text: 'Top centre' }), h('option', { value: 'tr', text: 'Top right' }));
+  const start = h('input', { type: 'number', value: 1, min: 0, style: 'width:100%' });
+  const size = h('input', { type: 'range', min: 1, max: 4, step: 0.5, value: 2 });
+  let back;
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'Page numbers' }),
+    h('label', { class: 'field' }, 'Format', fmt), h('label', { class: 'field' }, 'Position', pos), h('label', { class: 'field' }, 'First number', start), h('label', { class: 'field' }, 'Size', size),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Remove numbers', () => { commit(); pages.forEach((p) => { p.annots = p.annots.filter((x) => x.tag !== 'pn'); }); redrawOverlays(); back.remove(); toast('Page numbers removed'); }), btn('Cancel', () => back.remove()),
+      btn('Add', () => {
+        commit(); const s0 = +start.value || 0, N = pages.length;
+        pages.forEach((p, i) => {
+          p.annots = p.annots.filter((x) => x.tag !== 'pn');
+          const n = s0 + i, text = { n: `${n}`, pn: `Page ${n}`, nn: `${n} / ${N - 1 + s0}`, pnn: `Page ${n} of ${N - 1 + s0}` }[fmt.value];
+          const [bw, bh] = dispDims(p); const fs = size.value / 100; const top = pos.value[0] === 't';
+          const x = pos.value[1] === 'c' ? 0.5 : 0.93; const y = top ? 0.03 : 0.97 - (fs * bw) / bh;
+          p.annots.push(mkAnn({ type: 'text', tag: 'pn', mid: true, text, fs, x, y, color: '#333333' }));
+        });
+        redrawOverlays(); back.remove(); toast('Page numbers added');
+      }, 'primary'))));
+  document.body.append(back);
+}
+const openFormData = async () => { const f = await window.host.openFiles({ multi: true, filters: [['FDF / XFDF form data', ['fdf', 'xfdf']]] }); if (f.length) await loadFiles(f, true); };
+const createFromImages = async () => { const f = await window.host.openFiles({ multi: true, filters: [['Images', ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']]] }); if (f.length) await loadFiles(f, false); };
 
 // ---------- signature ----------
 function openSignature() {
@@ -511,7 +756,7 @@ async function doSearch(q) {
   for (let i = 0; i < pages.length; i++) {
     const p = pages[i]; if (!p.src) continue;
     const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
-    const tc = await pg.getTextContent(); const text = tc.items.map((it) => it.str).join(' ').toLowerCase();
+    const tc = await pg.getTextContent(); const text = (tc.items.map((it) => it.str).join(' ') + (p.ocr ? ' ' + p.ocr.lines.map((l) => l.t).join(' ') : '')).toLowerCase();
     let n = 0, at = 0; while ((at = text.indexOf(q, at)) !== -1) { n++; at += q.length; }
     if (n) hits.push({ i, n, snippet: text.slice(Math.max(0, text.indexOf(q) - 20), text.indexOf(q) + 40) });
   }
@@ -532,7 +777,7 @@ async function renderRight() {
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
   right.append(h('h3', { text: 'Ink' }), swatchBox, h('label', { class: 'field', style: 'margin-top:10px' }, 'Line width', sizeIn));
-  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Export page as PNG', () => exportPng()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed())));
+  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Recognise text (OCR)', () => openOcr()), btn('Export page as PNG', () => exportPng()), btn('Export all pages as images', () => exportImages()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed()), btn('Watermark', () => openWatermark()), btn('Page numbers', () => openPageNumbers()), btn('Print', () => printDoc())));
   const cur = pages[curPage]; const ent = cur && cur.src ? sources.get(cur.src) : null;
   if (ent && ent.fields.length) {
     right.append(h('h3', { text: 'Form fields' }));
@@ -635,9 +880,27 @@ async function rasterPage(p, list, scale = 2.5) {
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   return new Uint8Array(await blob.arrayBuffer());
 }
+let thaiBytes = null;
+async function getThaiBytes() { if (!thaiBytes) thaiBytes = new Uint8Array(await (await fetch('./vendor/fonts/NotoSansThai-Regular.ttf')).arrayBuffer()); return thaiBytes; }
+const THAI = /[฀-๿]/;
+const winAnsi = (s) => s.replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—•€…]/g, '?');
+// draws text left to right from (x,y) (PDF points, baseline); Thai runs use the embedded Noto Sans Thai, everything else Helvetica
+function drawMixed(page, F, text, x, y, size, color, deg = 0, opacity = 1) {
+  const th = (deg * Math.PI) / 180; let cx = x, cy = y;
+  for (const run of text.match(/[฀-๿]+|[^฀-๿]+/g) || []) {
+    const isTh = THAI.test(run) && F.thai, f = isTh ? F.thai : F.latin, t = isTh ? run : winAnsi(run);
+    if (!t) continue;
+    page.drawText(t, { x: cx, y: cy, size, font: f, color, rotate: degrees(deg), opacity });
+    const w = f.widthOfTextAtSize(t, size); cx += w * Math.cos(th); cy += w * Math.sin(th);
+  }
+}
+const mixedWidth = (F, text, size) => (text.match(/[฀-๿]+|[^฀-๿]+/g) || []).reduce((s, r) => { const isTh = THAI.test(r) && F.thai; return s + (isTh ? F.thai : F.latin).widthOfTextAtSize(isTh ? r : winAnsi(r), size); }, 0);
 async function buildPdf(list) {
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
+  const F = { latin: font, thai: null };
+  const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
+  if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
   const cache = new Map();
   for (const p of list) {
     let page; let q = p;
@@ -673,9 +936,12 @@ async function buildPdf(list) {
         page.drawSvgPath(d, { ...origin, borderColor: hex(a.color), borderWidth: a.w * (dw / 800), color: undefined, opacity: 0, borderOpacity: 1 });
       } else if (a.type === 'text') {
         const size = a.fs * dw; const lines = a.text.split('\n');
+        const ang = a.ang || 0;
         lines.forEach((ln, i) => {
-          const [x, y] = pt(a.x, a.y + (size * 0.8 + i * size * 1.2) / dh);
-          page.drawText(ln, { x, y, size, font, color: hex(a.color), rotate: degrees(q.r0) });
+          let [x, y] = pt(a.x, a.y + (size * 0.8 + i * size * 1.2) / dh);
+          const th = ((q.r0 - ang) * Math.PI) / 180;
+          if (a.mid) { const w = mixedWidth(F, ln, size); x -= (w / 2) * Math.cos(th); y -= (w / 2) * Math.sin(th); }
+          drawMixed(page, F, ln, x, y, size, hex(a.color), q.r0 - ang, a.op == null ? 1 : a.op);
         });
       } else if (a.type === 'image') {
         const img = await out.embedPng(a.data);
@@ -683,6 +949,14 @@ async function buildPdf(list) {
         const wPt = a.bw * dw, hPt = a.bh * dh;
         // lower-left corner of the displayed box, rotated with the page
         page.drawImage(img, { x, y, width: wPt, height: hPt, rotate: degrees(q.r0) });
+      }
+    }
+    if (ocrKeep && p.ocr && p.src && !redacts.length && p.rot === 0) {
+      const dhPt = dispDims(q)[1];
+      for (const l of p.ocr.lines) {
+        const lh = (l.y1 - l.y0), size = Math.max(4, lh * dhPt * 0.85);
+        const [x, y] = dispToPdf({ ...q, w: box.width, h: box.height }, l.x0, l.y1 - lh * 0.15, box);
+        try { drawMixed(page, F, l.t, x, y, size, rgb(0, 0, 0), q.r0, 0); } catch {}
       }
     }
     page.setRotation(degrees((base + p.rot) % 360));

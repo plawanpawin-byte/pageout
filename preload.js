@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('host', {
   openFiles: (opts) => ipcRenderer.invoke('file:open', opts),
   saveFile: (opts) => ipcRenderer.invoke('file:save', opts),
+  saveSeq: (opts) => ipcRenderer.invoke('file:saveSeq', opts),
   writeFile: (id, data) => ipcRenderer.invoke('file:write', id, data),
   readFile: (id) => ipcRenderer.invoke('file:read', id),
   recentList: () => ipcRenderer.invoke('recent:list'),

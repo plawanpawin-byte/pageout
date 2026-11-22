@@ -76,3 +76,12 @@ table.recent th:first-child,table.recent td:first-child{width:44px;padding:0 6px
 .ribbon .btn.rb.on .ic{color:var(--accent)}
 .ribbon .rsw{gap:14px;margin-left:6px}
 .rw{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-2);width:110px}
+
+/* printing */
+#printroot{display:none}
+@media print{
+  body.printing>*:not(#printroot){display:none!important}
+  body.printing #printroot{display:block}
+  body.printing #printroot img{display:block;width:100%;max-height:100vh;object-fit:contain;page-break-after:always}
+  html,body{overflow:visible!important;height:auto!important;background:#fff!important}
+}

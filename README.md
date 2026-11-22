@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.17 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.18 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -14,7 +14,7 @@ PDFout is a PDF reader and editor for Windows that works entirely on your comput
 
 ![PDFout](screenshots/01-reading-a-pdf.png)
 
-**On this page:** [In plain words](#in-plain-words) · [Who it is for](#who-it-is-for) · [Try it in 3 steps](#try-it-in-3-steps) · [Screenshots](#see-it-in-action) · [Features](#everything-it-can-do) · [How to use it](#how-to-use-it) · [Privacy](#private-by-design) · [Install](#install) · [Questions](#questions)
+**On this page:** [In plain words](#in-plain-words) · [Who it is for](#who-it-is-for) · [Try it in 3 steps](#try-it-in-3-steps) · [Screenshots](#see-it-in-action) · [OCR](#text-recognition-ocr-editing-text-that-is-a-picture) · [Features](#everything-it-can-do) · [How to use it](#how-to-use-it) · [Privacy](#private-by-design) · [Install](#install) · [Questions](#questions)
 
 ## In plain words
 
@@ -36,9 +36,11 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.17
+## What is new in 1.0.18
 
-**Fixed:** highlights, boxes, pen strokes and text notes can be dragged again with the Select tool (the drag used to stop after the first pixel). **Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
+**Text recognition (OCR)** for English and Thai, fully offline. You can now open pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form-data files as well as PDFs. New tools: Print, Export every page as images, Watermark and Page numbers. Every quick tool from the start screen is now also inside the editor, on the new **Convert** and **Tools** tabs and in the right-hand panel. Text notes now support Thai. Fixed: PDF form fields were not being detected, so the form panel never appeared.
+
+**Also fixed:** highlights, boxes, pen strokes and text notes can be dragged again with the Select tool (the drag used to stop after the first pixel). **Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
 
 ## In plain words
 
@@ -59,6 +61,44 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 1. Click **Open**, choose any PDF, and scroll through it. Use the page list on the left to jump around.
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
+
+## Text recognition (OCR): editing text that is a picture
+
+A scan or a photo of a page is just a picture, so you cannot select, search or change its words. **OCR** reads the picture and finds the words.
+
+1. Open the PDF or picture, then choose **Convert > OCR** (or the *Recognise text (OCR)* card on the start screen).
+2. Pick the language: **English + Thai**, **English** or **Thai**, and whether to read every page or only the current one.
+3. Click **Start OCR**. Reading happens on your computer; the first page takes a few seconds longer while the engine starts.
+4. A window shows the recognised text. You can **Copy text**, **Save as .txt**, or click **Edit as text boxes**.
+5. **Edit as text boxes** covers each line of the picture with a white patch and puts the same words on top as normal text boxes. Double-click a box to correct a word, drag it to move it, then save.
+6. Leave **Keep this text inside the PDF** ticked and the saved PDF becomes searchable and copyable (an invisible text layer sits under the picture).
+
+![Choosing OCR options](screenshots/06-ocr-dialog.png)
+
+![The recognised text](screenshots/07-ocr-result.png)
+
+![Edited as text boxes, with a watermark and page number](screenshots/08-text-boxes-and-watermark.png)
+
+![The exported page](screenshots/09-ocr-exported-page.png)
+
+**Good to know**
+- Clear, straight, high-contrast pages read best. Handwriting, blurry photos and very small print are often wrong, so always check the result.
+- Thai is read less accurately than English (for example tone marks can be missed), and long lines may need a quick fix.
+- Pages you redacted are saved as pictures and never get a hidden text layer, so redacted words cannot leak through OCR.
+
+## More ways to open and save files
+
+- **Open:** PDF, pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form data. The Open window has the same file-type choices as other PDF programs: *Common files*, *PDF files*, *Images* and *FDF / XFDF*. Drag and drop works for all of them.
+- **Pictures become PDF pages.** Use **Convert > From images**, or open several pictures at once, to make one PDF.
+- **FDF / XFDF** files fill in a form. Open the PDF form and the data file together (or use **Tools > Form data**), check the values in the right-hand panel and click **Fill form into page**.
+- **Export:** a PDF, one page as PNG, every page as numbered PNG pictures, or all the text as a .txt file.
+- **Not supported:** OFD files (a Chinese document standard) cannot be opened.
+
+## Print, watermark and page numbers
+
+- **Print** (Home or Tools tab) prints the document as it will be saved, with your marks, redactions and numbers.
+- **Watermark** stamps text such as CONFIDENTIAL across every page, or only the current one. Choose size, strength, colour and direction. *Remove watermarks* takes them off again.
+- **Page numbers** adds numbers in the format, position and size you choose (for example *Page 3 of 12*). *Remove numbers* takes them off.
 
 ## See it in action
 
@@ -100,7 +140,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 ## The interface
 
-- **Tabs and ribbon (top):** six tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign), **Tools** (export page as PNG, extract text, compress, merge) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
+- **Tabs and ribbon (top):** seven tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign, watermark), **Convert** (OCR, extract text, export page or all pages as pictures, create a PDF from pictures), **Tools** (combine, compress, watermark, page numbers, form data, print) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
 - **Left panel:** page buttons (rotate, delete, copy, move, blank, extract) above live thumbnails of every page.
 - **Right panel:** document title and author, ink colour and line width, export tools, and search results.
 
@@ -215,6 +255,15 @@ Many programs only draw a black box over text, and the text can still be copied 
 
 **Why can I no longer select text on a page I redacted?**  
 To remove the hidden text for real, PDFout saves a redacted page as a picture. Text on that page can no longer be selected or searched. Pages without redaction keep their text.
+
+**Does OCR need the internet or an account?**  
+No. The recognition engine and the English and Thai language data are inside the app, so nothing is downloaded or uploaded.
+
+**Why is the download bigger now?**  
+The OCR engine and language data add about 25 MB.
+
+**Can I edit the original words of a normal PDF?**  
+Not yet. PDFout can add text, cover text and (with OCR) turn a picture of text into editable text boxes, but it does not rewrite the text that is already inside a PDF.
 
 ## About Lookout
 

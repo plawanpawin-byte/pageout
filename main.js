@@ -88,6 +88,15 @@ ipcMain.handle('file:save', async (_e, opts = {}) => {
   return { id: grant(r.filePath), name: path.basename(r.filePath) };
 });
 
+ipcMain.handle('file:saveSeq', async (_e, opts = {}) => {
+  const items = Array.isArray(opts.items) ? opts.items : [];
+  const r = await dialog.showSaveDialog(win, { defaultPath: safeName(opts.name || 'page.png'), filters: [{ name: 'PNG image', extensions: ['png'] }] });
+  if (r.canceled || !r.filePath || !items.length) return 0;
+  const base = r.filePath.replace(/\.[^.\\/]+$/, '');
+  items.forEach((b, i) => fs.writeFileSync(`${base}-${i + 1}.png`, Buffer.from(b)));
+  return items.length;
+});
+
 ipcMain.handle('file:write', async (_e, id, data) => {
   fs.writeFileSync(pathOf(id), Buffer.from(data));
   return true;

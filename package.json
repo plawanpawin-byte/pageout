@@ -1,7 +1,7 @@
 {
   "name": "pdfout",
   "productName": "PDFout",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Read, annotate, organise and sign PDF files. Everything stays on your computer.",
   "main": "main.js",
   "author": "Lookout",
@@ -45,11 +45,17 @@
       "perMachine": false,
       "deleteAppDataOnUninstall": false
     },
-    "afterPack": "afterPack.js"
+    "afterPack": "afterPack.js",
+    "asarUnpack": [
+      "renderer/vendor/ocr/**",
+      "renderer/vendor/fonts/**"
+    ]
   },
   "devDependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "electron": "^45.4.1",
-    "electron-builder": "^26.18.0"
+    "electron-builder": "^26.18.0",
+    "tesseract.js": "^7.0.0"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",

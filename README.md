@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.21 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.22 (beta) for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -36,9 +36,9 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.21
+## What is new in 1.0.22 (beta)
 
-**Important fix:** in 1.0.20, saving a PDF that contained Thai text failed with an error. That is fixed. If you installed 1.0.20, please update.
+**Important fix:** in 1.0.20, saving a PDF that contained Thai text failed with an error. That is fixed in 1.0.21 and in this beta.
 
 **Start screen in categories.** The quick tools are now grouped (Popular, Write and fill, Pages, Protect, Convert, Tools), so the start screen shows a few at a time instead of one long list.
 

@@ -61,7 +61,7 @@ stage.style.overflow = 'auto';
 
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
 const bHome = btn('Home', () => {
-  if (pages.length && snapshot() !== savedSnap && !confirm(tr('Close this document without saving?'))) return;
+  if (pages.length && stamp() !== savedSnap && !confirm(tr('Close this document without saving?'))) return;
   pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; leftMode = 'pages'; fullRender();
 });
 const bUndo = btn('Undo', () => undo());
@@ -136,7 +136,16 @@ setTool('select');
 // ---------- home screen (shown when no document is open) ----------
 const home = h('div', { class: 'home' });
 app.append(home);
-let homeTab = 'recent';
+let homeTab = 'recent', homeCat = 'popular';
+// the quick tools are grouped into categories so the start screen shows a few at a time
+const CATS = [
+  ['popular', 'Popular', ['Edit text', 'Annotate', 'Sign', 'Redact', 'Combine files', 'Compress', 'Recognise text (OCR)', 'Password']],
+  ['write', 'Write and fill', ['Edit text', 'Annotate', 'Sign', 'Fill form', 'Blank PDF', 'Page numbers']],
+  ['pages', 'Pages', ['Organise pages', 'Crop pages', 'Split', 'Combine files', 'Batch', 'Bookmarks']],
+  ['protect', 'Protect', ['Redact', 'Redact words', 'Password', 'Digital signature', 'Watermark']],
+  ['convert', 'Convert', ['Save as Word', 'Export text', 'Recognise text (OCR)', 'Images to PDF', 'Export images', 'PDF/A archive', 'Compress']],
+  ['tools', 'Tools', ['Compare', 'Find in files', 'Print', 'Batch']],
+];
 const IC = (d) => { const s = sv('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); s.innerHTML = d; return s; };
 async function openThen(fn) { await openFiles(false); if (pages.length && fn) setTimeout(fn, 60); }
 async function createBlank() {
@@ -144,7 +153,7 @@ async function createBlank() {
   pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = [];
   const sid = await addSource('Untitled.pdf', new Uint8Array(await d.save()));
   pages.push(...await pagesOf(sid)); sel.clear(); curPage = 0; selAnn = null; meta = { title: '', author: '' };
-  setTimeout(() => { savedSnap = snapshot(); }, 0); fullRender();
+  setTimeout(() => { savedSnap = stamp(); }, 0); fullRender();
 }
 const QUICK = [
   ['Edit text', 'Change the words already in a PDF.', '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M4 7h6M4 11h4"/>', () => openThen(() => setTool('edittext'))],
@@ -186,7 +195,10 @@ async function renderHome() {
     h('div', { class: 'home-links' },
       ...[['recent', 'Recent files'], ['starred', 'Starred files']].map(([k, n]) => h('button', { class: 'home-link' + (homeTab === k ? ' on' : ''), text: n, onclick: () => { homeTab = k; renderHome(); } }))),
     h('div', { class: 'home-note', text: 'Everything stays on this computer. Nothing is uploaded.' }));
-  const quick = h('div', { class: 'quick' }, ...QUICK.map(([t, d, ic, fn]) => h('button', { class: 'qcard', onclick: fn }, IC(ic), h('div', {}, h('b', { text: t }), h('span', { text: d })))));
+  const cat = CATS.find((x) => x[0] === homeCat) || CATS[0], shown = cat[2].map((n) => QUICK.find((q) => q[0] === n)).filter(Boolean);
+  const chips = h('div', { class: 'chips' }, ...CATS.map(([k, n]) => h('button', { class: 'chip' + (k === homeCat ? ' on' : ''), text: n, onclick: () => { homeCat = k; renderHome(); } })), h('button', { class: 'chip' + (homeCat === 'all' ? ' on' : ''), text: 'All', onclick: () => { homeCat = 'all'; renderHome(); } }));
+  const list_ = homeCat === 'all' ? QUICK : shown;
+  const quick = h('div', {}, chips, h('div', { class: 'quick' }, ...list_.map(([t, d, ic, fn]) => h('button', { class: 'qcard', onclick: fn }, IC(ic), h('div', {}, h('b', { text: t }), h('span', { text: d }))))));
   let list = [];
   try { list = await window.host.recentList(); } catch {}
   if (homeTab === 'starred') list = list.filter((x) => x.star);
@@ -333,7 +345,7 @@ async function loadFiles(files, merge) {
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
-  sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
+  sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = stamp(); }, 0);
   for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
   fullRender();
 }
@@ -344,6 +356,7 @@ async function openFiles(merge, preset) {
 
 // ---------- undo ----------
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })));
+const stamp = () => snapshot() + JSON.stringify([outline, meta]);   // what counts as unsaved work
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
@@ -1309,7 +1322,7 @@ async function save() {
     const bytes = await buildPdf(pages, protectOpts);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
-    if (r) { savedSnap = snapshot(); lastSave = r; toast('Saved ' + r.name); }
+    if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name); }
   } catch (e) { toast('Save failed: ' + (e.message || e)); }
 }
 
@@ -1324,9 +1337,9 @@ initExtra(X, {
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
   buildPdf, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
-  drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
-  markSaved() { savedSnap = snapshot(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
+  drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
+  markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });
 fullRender();
 
-window.addEventListener('beforeunload', (e) => { if (pages.length && snapshot() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', (e) => { if (pages.length && stamp() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });

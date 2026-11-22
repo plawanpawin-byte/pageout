@@ -9,7 +9,7 @@ export function initBatch(X, c) {
     ['clean', 'Remove hidden information (author, dates)'], ['rotate', 'Turn every page 90 degrees'], ['pdf2img', 'Save every page as a picture'], ['img2pdf', 'Turn pictures into PDFs (one each)'],
   ];
   X.batch = () => {
-    let files = [];
+    let files = [], running = false;
     const op = selectEl(c, OPS, 'merge'), pw = h('input', { type: 'password', style: 'width:100%' }), pwBox = fld(c, 'Password', pw), listBox = h('div', { class: 'muted', style: 'max-height:140px;overflow:auto' }), q = num(c, 60, 20, 95);
     const qBox = fld(c, 'Picture quality (%) for smaller files', q);
     const sync = () => { pwBox.style.display = op.value === 'lock' || op.value === 'unlock' ? '' : 'none'; qBox.style.display = op.value === 'compress' ? '' : 'none'; pwBox.firstChild.textContent = c.tr(op.value === 'lock' ? 'Password to set' : 'Password the files have'); };
@@ -19,9 +19,10 @@ export function initBatch(X, c) {
     modal(c, 'Batch', [note(c, 'Choose the files, choose the job, then choose where to save the results. Your originals are never changed.'), fld(c, 'Job', op),
       h('div', { class: 'row' }, btn('Choose PDF files', () => pick(false)), btn('Choose pictures', () => pick(true))), listBox, pwBox, qBox, bar, msg],
     (close) => [btn('Close', close), btn('Start', async () => {
+      if (running) return;
       if (!files.length) { toast('Choose some files first'); return; }
       const o = op.value; if ((o === 'lock') && !pw.value) { toast('Type a password'); return; }
-      bar.style.display = ''; const out = [], failed = [];
+      bar.style.display = ''; const out = [], failed = []; running = true;
       try {
         const get = async (f) => bytesOf(await c.host.readFile(f.id));
         if (o === 'merge') {
@@ -43,7 +44,7 @@ export function initBatch(X, c) {
                 const d = await PDFDocument.load(b, o === 'unlock' ? { password: pw.value } : o === 'lock' ? {} : { ignoreEncryption: false, password: pw.value });
                 if (o === 'rotate') d.getPages().forEach((p) => p.setRotation(degrees((p.getRotation().angle + 90) % 360)));
                 if (o === 'clean') { d.setTitle(''); d.setAuthor(''); d.setSubject(''); d.setKeywords([]); d.setProducer(''); d.setCreator(''); }
-                if (o === 'lock') d.encrypt({ userPassword: pw.value, ownerPassword: pw.value + '#owner', permissions: { printing: 'highResolution', copying: true, modifying: false, annotating: true, fillingForms: true, contentAccessibility: true, documentAssembly: false } });
+                if (o === 'lock') d.encrypt({ userPassword: pw.value, ownerPassword: Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''), permissions: { printing: 'highResolution', copying: true, modifying: false, annotating: true, fillingForms: true, contentAccessibility: true, documentAssembly: false } });
                 const outDoc = (o === 'unlock' || o === 'clean') ? await (async () => { const n = await PDFDocument.create({ updateMetadata: o !== 'clean' }); (await n.copyPages(d, d.getPageIndices())).forEach((p) => n.addPage(p)); if (o === 'clean') { n.setProducer(''); n.setCreator(''); } return n; })() : d;
                 out.push({ name: stem + (o === 'lock' ? '-locked' : o === 'unlock' ? '-unlocked' : o === 'rotate' ? '-rotated' : '-clean') + '.pdf', data: new Uint8Array(await outDoc.save()) });
               }
@@ -55,7 +56,7 @@ export function initBatch(X, c) {
         const r = await c.host.saveMany({ items: out, title: 'Choose a folder for the results' });
         msg.textContent = r ? `Saved ${r.count} file${r.count === 1 ? '' : 's'}.` + (failed.length ? ` Could not process: ${failed.join(', ')}` : '') : 'Cancelled.';
         if (r) toast(`Batch done: ${r.count} file${r.count === 1 ? '' : 's'} saved`);
-      } catch (e) { msg.textContent = 'Failed: ' + (e.message || e); }
+      } catch (e) { msg.textContent = 'Failed: ' + (e.message || e); } finally { running = false; }
     }, 'primary')]);
   };
 }

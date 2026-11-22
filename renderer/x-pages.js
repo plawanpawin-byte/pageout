@@ -77,7 +77,7 @@ export function initPages(X, c) {
   X.crop = async () => {
     if (!need()) return;
     const p0 = c.pages[c.curPage]; if (!p0.src) { toast('This page is blank, there is nothing to crop'); return; }
-    const cv = await c.pageCanvas(p0, 0.55); const view = h('canvas', { style: 'max-width:100%;border-radius:6px;background:#fff' }); view.width = cv.width; view.height = cv.height;
+    const cv = await c.pageCanvas(p0, 0.55); const view = h('canvas', { style: 'max-width:100%;max-height:34vh;align-self:center;border-radius:6px;background:#fff' }); view.width = cv.width; view.height = cv.height;
     const inp = {}; const m = { l: 0, t: 0, r: 0, b: 0 };
     const draw = () => {
       const g = view.getContext('2d'); g.drawImage(cv, 0, 0); g.fillStyle = 'rgba(20,30,50,.55)';
@@ -88,7 +88,7 @@ export function initPages(X, c) {
     const mk = (k, name) => { inp[k] = num(c, 0, 0, 45, 0.5); inp[k].oninput = () => { m[k] = Math.min(0.45, Math.max(0, (+inp[k].value || 0) / 100)); draw(); }; return fld(c, name + ' (%)', inp[k]); };
     const sc = scopeUI();
     const setAll = () => { for (const k of ['l', 't', 'r', 'b']) inp[k].value = Math.round(m[k] * 1000) / 10; draw(); };
-    modal(c, 'Crop pages', [note(c, 'Trim the margins. The part you remove is gone from the saved file.'), view,
+    modal(c, 'Crop pages', [note(c, 'Trim the margins. The page shows only what is left, but the trimmed part can still be inside the file. To hide private details for good, use Redact. Form fields on cropped pages become flat.'), view,
       h('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:8px' }, mk('t', 'Top'), mk('b', 'Bottom'), mk('l', 'Left'), mk('r', 'Right')),
       btn('Trim white edges automatically', async () => { const a = await autoTrim(p0); if (!a) { toast('This page has no content to trim around'); return; } Object.assign(m, a); setAll(); }), ...sc.els],
     (close) => [btn('Cancel', close), btn('Crop', async () => {
@@ -193,7 +193,7 @@ export function initPages(X, c) {
   // ---------- picture, stamp ----------
   const placeImage = (url, iw, ih, widthFrac) => {
     const p = c.pages[c.curPage], [dw, dh] = c.dispDims(p), bw = widthFrac, bh = bw * (ih / iw) * (dw / dh);
-    c.commit(); p.annots.push(c.mkAnn({ type: 'image', x: Math.max(0, 0.5 - bw / 2), y: Math.max(0, 0.5 - bh / 2), bw, bh: Math.min(bh, 0.95), data: url }));
+    c.commit(); const k = bh > 0.95 ? 0.95 / bh : 1; p.annots.push(c.mkAnn({ type: 'image', x: Math.max(0, 0.5 - (bw * k) / 2), y: Math.max(0, 0.5 - (bh * k) / 2), bw: bw * k, bh: bh * k, data: url }));
     c.redrawOverlays(); c.setTool('select');
   };
   X.insertImage = async () => {
@@ -259,7 +259,7 @@ export function initPages(X, c) {
         const bates = (pre.value || '') + String((+st.value || 0) + i).padStart(+dg.value || 6, '0');
         for (const [k, y, al] of [['hl', 0.03, 'l'], ['hc', 0.03, 'c'], ['hr', 0.03, 'r'], ['fl', 0.97 - (fs * bw) / bh, 'l'], ['fc', 0.97 - (fs * bw) / bh, 'c'], ['fr', 0.97 - (fs * bw) / bh, 'r']]) {
           const t = f[k].value.trim(); if (!t) continue;
-          const text = t.replace(/\{page\}/g, i + 1).replace(/\{pages\}/g, N).replace(/\{date\}/g, date).replace(/\{file\}/g, file).replace(/\{bates\}/g, bates);
+          const text = t.replace(/\{page\}/g, i + 1).replace(/\{pages\}/g, N).replace(/\{date\}/g, date).replace(/\{file\}/g, () => file).replace(/\{bates\}/g, () => bates);
           p.annots.push(c.mkAnn({ type: 'text', tag: 'hf', text, fs, x: al === 'l' ? 0.06 : al === 'c' ? 0.5 : 0.94, y, mid: al === 'c', al: al === 'r' ? 'r' : undefined, color: colr.value }));
         }
       });

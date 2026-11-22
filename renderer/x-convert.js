@@ -62,6 +62,7 @@ export function initConvert(X, c) {
         for (let k = 0; k < ops.fnArray.length; k++) {
           const fn = ops.fnArray[k], a = ops.argsArray[k];
           if (fn === OPS.save) st.push(ctm.slice()); else if (fn === OPS.restore) ctm = st.pop() || [1, 0, 0, 1, 0, 0]; else if (fn === OPS.transform) ctm = mul(a, ctm);
+          else if (fn === OPS.paintFormXObjectBegin) { st.push(ctm.slice()); if (a && a[0]) ctm = mul(a[0], ctm); } else if (fn === OPS.paintFormXObjectEnd) ctm = st.pop() || [1, 0, 0, 1, 0, 0];
           else if (fn === OPS.paintImageXObject || fn === OPS.paintInlineImageXObject || fn === OPS.paintImageMaskXObject) {
             const pts = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, v]) => vp.convertToViewportPoint(ctm[0] * u + ctm[2] * v + ctm[4], ctm[1] * u + ctm[3] * v + ctm[5]));
             const x0 = Math.min(...pts.map((q) => q[0])), x1 = Math.max(...pts.map((q) => q[0])), y0 = Math.min(...pts.map((q) => q[1])), y1 = Math.max(...pts.map((q) => q[1]));
@@ -134,8 +135,8 @@ export function initConvert(X, c) {
       const pgs = await analyze(await docBytes(), false, progress('Reading page')), out = [];
       for (const P of pgs) {
         for (const b of P.blocks) {
-          if (b.k === 'p') { const lv = headingLevel(b); const t = b.text.replace(/^\s*[•●▪‣]\s/, '- ').replace(/([\\`*_{}\[\]#|])/g, '\\$1'); out.push(lv ? '#'.repeat(lv) + ' ' + t : t); }
-          else if (b.k === 't') { const row = (r) => '| ' + r.map((t) => String(t).replace(/\|/g, '\\|')).join(' | ') + ' |'; out.push([row(b.rows[0]), '| ' + b.rows[0].map(() => '---').join(' | ') + ' |', ...b.rows.slice(1).map(row)].join('\n')); }
+          if (b.k === 'p') { const lv = headingLevel(b); const t = b.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/^\s*[•●▪‣]\s/, '- ').replace(/([\\`*_{}\[\]#|!])/g, '\\$1'); out.push(lv ? '#'.repeat(lv) + ' ' + t : t); }
+          else if (b.k === 't') { const row = (r) => '| ' + r.map((t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '\\|')).join(' | ') + ' |'; out.push([row(b.rows[0]), '| ' + b.rows[0].map(() => '---').join(' | ') + ' |', ...b.rows.slice(1).map(row)].join('\n')); }
         }
         out.push('');
       }
@@ -170,7 +171,8 @@ export function initConvert(X, c) {
       const pgs = await analyze(await docBytes(), false, progress('Reading page')), tables = [];
       pgs.forEach((P) => P.blocks.filter((b) => b.k === 't').forEach((b) => tables.push({ page: P.n, rows: b.rows })));
       if (!tables.length) { toast('No tables found. Tables need columns of text that line up.'); return; }
-      const csv = (rows) => '﻿' + rows.map((r) => r.map((t) => (/[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t)).join(',')).join('\r\n');
+      const safe = (t) => (/^[=+@]/.test(t) || /^-(?!\d)/.test(t) ? "'" + t : t);   // a cell that starts like a formula must not run in Excel
+      const csv = (rows) => '﻿' + rows.map((r) => r.map((t0) => { const t = safe(String(t0)); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; }).join(',')).join('\r\n');
       if (tables.length === 1) { const r = await c.host.saveFile({ name: baseName(c.fileName || 'table') + '.csv', filters: [['CSV spreadsheet', ['csv']]], data: new TextEncoder().encode(csv(tables[0].rows)) }); if (r) toast('Saved ' + r.name + '. Open it in Excel or Sheets.'); }
       else { const r = await c.host.saveMany({ items: tables.map((t, i) => ({ name: `${baseName(c.fileName || 'table')}-p${t.page}-table${i + 1}.csv`, data: new TextEncoder().encode(csv(t.rows)) })) }); if (r) toast(`Saved ${r.count} tables as CSV files`); }
     } catch (e) { toast('Export failed: ' + (e.message || e)); }

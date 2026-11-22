@@ -4,7 +4,7 @@ import { modal, fld, note, sel as selectEl, num, txt, baseName, bytesOf } from '
 export function initDoc(X, c) {
   const { h, btn, toast } = c;
   const need = () => { if (!c.pages.length) { toast('Open a PDF first'); return false; } return true; };
-  const dirty = () => c.pages.length && c.snapshot() !== c.savedSnap();
+  const dirty = () => c.pages.length && c.stamp() !== c.savedSnap();
 
   // ---------- bookmarks ----------
   X.loadOutline = async () => {
@@ -69,10 +69,12 @@ export function initDoc(X, c) {
   };
   X.makeContents = () => {
     if (!need()) return; if (!c.outline.length) { toast('Add some bookmarks first'); return; }
-    c.commit();
     const per = 26, entries = c.outline.filter((o) => pageNo(o.pid)), nPages = Math.ceil(entries.length / per), made = [];
+    if (!nPages) { toast('None of the bookmarks point to a page'); return; }
+    c.commit();
+    if (c.pages[0].toc) c.pages = c.pages.filter((p) => !p.toc);
     const ref = c.pages[0], [W, H] = [ref.r0 % 180 ? ref.h : ref.w, ref.r0 % 180 ? ref.w : ref.h];
-    for (let k = 0; k < nPages; k++) made.push({ id: c.uid(), src: null, index: -1, rot: 0, annots: [], w: W, h: H, r0: 0 });
+    for (let k = 0; k < nPages; k++) made.push({ id: c.uid(), src: null, index: -1, rot: 0, annots: [], w: W, h: H, r0: 0, toc: true });
     entries.forEach((o, i) => {
       const pg = made[Math.floor(i / per)], row = i % per, y = 0.13 + row * 0.033, target = c.pages.find((p) => p.id === o.pid), n = pageNo(o.pid) + nPages;
       pg.annots.push(c.mkAnn({ type: 'text', text: o.title, fs: 0.02, x: 0.08 + o.level * 0.035, y, color: '#111111', bold: o.level === 0 }));
@@ -172,11 +174,11 @@ export function initDoc(X, c) {
         try { const data = bytesOf(await c.host.readFile(f.id)); doc = await c.pdfjs.getDocument({ data, isEvalSupported: false }).promise; } catch { skipped++; continue; }
         try {
           for (let i = 1; i <= doc.numPages && !stop; i++) {
-            const tc = await (await doc.getPage(i)).getTextContent(), t = tc.items.map((it) => it.str).join(' '), low = t.toLowerCase(); let at = low.indexOf(needle), n = 0, first = at;
+            const pgx = await doc.getPage(i), tc = await pgx.getTextContent(); pgx.cleanup(); const t = tc.items.map((it) => it.str).join(' '), low = t.toLowerCase(); let at = low.indexOf(needle), n = 0, first = at;
             while (at !== -1) { n++; at = low.indexOf(needle, at + needle.length); }
             if (n) { hits++; res.append(h('div', { class: 'hitrow', onclick: async () => {
               if (dirty() && !confirm(c.tr('Open this file and close the current one without saving?'))) return;
-              try { const item = { name: f.name, data: bytesOf(await c.host.readFile(f.id)) }; document.querySelector('.modal-back') && document.querySelectorAll('.modal-back').forEach((e) => e.remove()); await c.loadFiles([item], false); setTimeout(() => c.gotoPage(i - 1), 400); } catch (e) { toast('Cannot open: ' + (e.message || e)); }
+              try { stop = true; const item = { name: f.name, data: bytesOf(await c.host.readFile(f.id)) }; document.querySelector('.modal-back') && document.querySelectorAll('.modal-back').forEach((e) => e.remove()); await c.loadFiles([item], false); setTimeout(() => c.gotoPage(i - 1), 400); } catch (e) { toast('Cannot open: ' + (e.message || e)); }
             } }, h('b', { text: `${f.rel || f.name}  ·  page ${i}${n > 1 ? ` (${n} matches)` : ''}` }), h('span', { text: '…' + t.slice(Math.max(0, first - 40), first + needle.length + 60).replace(/\s+/g, ' ') + '…' }))); }
           }
         } catch { skipped++; }

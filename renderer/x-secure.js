@@ -23,20 +23,21 @@ export function initSecure(X, c) {
   X.flatten = () => {
     if (!need()) return;
     modal(c, 'Flatten', [note(c, 'Saves a copy where every form field becomes plain text on the page. Nobody can change the answers afterwards.')], (close) => [btn('Cancel', close), btn('Save flattened copy', async () => {
-      close(); try { const bytes = await c.buildPdf(c.pages, null, { post: async (out) => { try { out.getForm().flatten(); } catch {} } }); await saveBytes('-flat.pdf', bytes); } catch (e) { toast('Failed: ' + (e.message || e)); }
+      close(); try { const bytes = await c.buildPdf(c.pages, null, { post: async (out) => { try { out.getForm().flatten(); } catch (e) { toast('Some form fields could not be flattened: ' + (e.message || e)); } } }); await saveBytes('-flat.pdf', bytes); } catch (e) { toast('Failed: ' + (e.message || e)); }
     }, 'primary')]);
   };
 
   // ---------- redact by words or patterns ----------
   const meas = document.createElement('canvas').getContext('2d'); meas.font = '100px Arial, "Leelawadee UI", sans-serif';
   const mw = (s) => meas.measureText(s).width;
+  let skippedRot = 0;
   // finds the places on a page where a regular expression matches; text split over several runs is joined first
   async function matchesOnPage(p, res) {
     const out = [];
     if (p.src) {
       const pg = await c.sources.get(p.src).pdf.getPage(p.index + 1), vp = pg.getViewport({ scale: 1, rotation: pg.rotate }), tc = await pg.getTextContent();
-      const segs = []; let T = '';
-      for (const it of tc.items) { if (!it.str) continue; if (T) T += ' '; segs.push({ it, s: T.length, e: T.length + it.str.length }); T += it.str; }
+      const segs = []; let T = '', prevEnd = null, prevY = null;
+      for (const it of tc.items) { if (!it.str) continue; const fs0 = Math.hypot(it.transform[2], it.transform[3]) || 10; if (T && !(prevY !== null && Math.abs(it.transform[5] - prevY) < 0.3 * fs0 && Math.abs(it.transform[4] - prevEnd) < 0.2 * fs0)) T += ' '; segs.push({ it, s: T.length, e: T.length + it.str.length }); T += it.str; prevEnd = it.transform[4] + it.width; prevY = it.transform[5]; }
       for (const re of res) {
         re.lastIndex = 0; let m;
         while ((m = re.exec(T))) {
@@ -44,10 +45,10 @@ export function initSecure(X, c) {
           if (re.check && !re.check(m[0])) continue;
           for (const sg of segs) {
             const a = Math.max(m.index, sg.s), b = Math.min(m.index + m[0].length, sg.e); if (b <= a) continue;
-            const it = sg.it, tr = it.transform; if (Math.abs(tr[1]) > 0.01 || Math.abs(tr[2]) > 0.01 && Math.abs(tr[0]) < 0.01) continue;
+            const it = sg.it, tr = it.transform; if (Math.abs(tr[1]) > 0.01 || Math.abs(tr[2]) > 0.01) { skippedRot++; continue; }
             const fs = Math.hypot(tr[2], tr[3]) || 10, full = mw(it.str) || 1, pre = mw(it.str.slice(0, a - sg.s)), part = mw(it.str.slice(a - sg.s, b - sg.s));
             const x0 = tr[4] + it.width * (pre / full), x1 = x0 + it.width * (part / full), y = tr[5];
-            const A = vp.convertToViewportPoint(x0 - fs * 0.04, y + 0.95 * fs), B = vp.convertToViewportPoint(x1 + fs * 0.04, y - 0.28 * fs);
+            const A = vp.convertToViewportPoint(x0 - fs * 0.1, y + 1.0 * fs), B = vp.convertToViewportPoint(x1 + fs * 0.1, y - 0.38 * fs);
             out.push({ x: Math.min(A[0], B[0]) / vp.width, y: Math.min(A[1], B[1]) / vp.height, bw: Math.abs(A[0] - B[0]) / vp.width, bh: Math.abs(A[1] - B[1]) / vp.height });
           }
         }
@@ -67,10 +68,12 @@ export function initSecure(X, c) {
     return out;
   }
   async function redactWith(res) {
-    c.commit(); let n = 0, pgs = 0;
+    c.commit(); let n = 0, pgs = 0; skippedRot = 0;
     for (const p of c.pages) { const ms = await matchesOnPage(p, res); if (ms.length) pgs++; for (const m of ms) { p.annots.push(c.mkAnn({ type: 'redact', ...m })); n++; } }
     if (!n) { c.dropCommit(); toast('Nothing found to redact'); return; }
     c.redrawOverlays(); toast(`Blacked out ${n} place${n === 1 ? '' : 's'} on ${pgs} page${pgs === 1 ? '' : 's'}. The text is removed for good when you save.`);
+    if (skippedRot) setTimeout(() => toast(`${skippedRot} sideways or upside-down pieces of text were not checked. Look at the pages yourself.`), 2800);
+    else if (c.outline.length || c.meta.title || c.meta.author || c.meta.subject || c.meta.keywords) setTimeout(() => toast('Bookmarks and document properties may still contain these words. Check them, or use Clean metadata.'), 2800);
   }
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   X.redactWords = () => {
@@ -117,7 +120,7 @@ export function initSecure(X, c) {
     const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
     const enc = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await wrapKey(pass, salt), new TextEncoder().encode(F.pki.privateKeyToPem(keys.privateKey))));
     const rec = { name, cert: F.pki.certificateToPem(cert), salt: b64(salt), iv: b64(iv), key: b64(enc), made: Date.now() };
-    try { localStorage.setItem(IDKEY, JSON.stringify(rec)); } catch {}
+    try { localStorage.setItem(IDKEY, JSON.stringify(rec)); } catch { toast('The signing ID could not be remembered. It works for this signature only.'); }
     return rec;
   }
   async function openId(rec, pass) {
@@ -195,7 +198,7 @@ export function initSecure(X, c) {
       try {
         let ident;
         if (mode.value === 'mine') ident = await openId(rec, pass.value);
-        else if (mode.value === 'new') { if (!nm.value.trim()) { toast('Type your name'); return; } if (pass2.value.length < 6) { toast('Use a passphrase of at least 6 characters'); return; } toast('Creating your signing ID, this takes a few seconds...'); const r = await makeId(nm.value.trim(), em.value.trim(), org.value.trim(), pass2.value); ident = await openId(r, pass2.value); }
+        else if (mode.value === 'new') { if (rec && !confirm(c.tr('This replaces your saved signing ID. Files you signed with the old one stay valid, but you can no longer sign as it. Continue?'))) return; if (!nm.value.trim()) { toast('Type your name'); return; } if (pass2.value.length < 6) { toast('Use a passphrase of at least 6 characters'); return; } toast('Creating your signing ID, this takes a few seconds...'); const r = await makeId(nm.value.trim(), em.value.trim(), org.value.trim(), pass2.value); ident = await openId(r, pass2.value); }
         else { if (!pfx) { toast('Choose a certificate file'); return; } ident = openPfx(pfx, passFile.value); }
         close(); toast('Signing...');
         const who = subjectName(ident.cert), N = c.pages.length, ti = pos.value === 'cCur' ? c.curPage : pos.value === 'blFirst' ? 0 : N - 1;
@@ -206,7 +209,7 @@ export function initSecure(X, c) {
         const raw = await c.buildPdf(list, null, { save: { useObjectStreams: false, addDefaultPage: false }, post: async (out) => {
           const pg = out.getPage(ti), box = pg.getCropBox(); let rect = [0, 0, 0, 0];
           const st = target.annots.find((a) => a.tag === 'sigstamp');
-          if (st) { const q = { w: box.width, h: box.height, r0: target.r0 }, A = c.dispToPdf(q, st.x, st.y, box), B = c.dispToPdf(q, st.x + st.bw, st.y + st.bh, box); rect = [Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.max(A[0], B[0]), Math.max(A[1], B[1])]; }
+          if (st) { const rast = target.annots.some((a) => a.type === 'redact' || a.perm), q = { w: box.width, h: box.height, r0: rast ? 0 : target.r0 }, A = c.dispToPdf(q, st.x, st.y, box), B = c.dispToPdf(q, st.x + st.bw, st.y + st.bh, box); rect = [Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.max(A[0], B[0]), Math.max(A[1], B[1])]; }
           addSigField(out, pg, rect, info);
         } });
         const signed = await signBytes(raw, ident, info);
@@ -224,6 +227,7 @@ export function initSecure(X, c) {
     while ((m = re.exec(txt_))) {
       const br = m.slice(1, 5).map(Number), rest = txt_.slice(br[1], br[2]), hx = /^\s*<([0-9A-Fa-f\s]+)>/.exec(rest); if (!hx) continue;
       const row = { ok: false, text: '' };
+      const covers = br[0] === 0 && br[1] <= br[2] && br[2] + br[3] === bytes.length && /^\s*<[0-9A-Fa-f\s]+>\s*$/.test(txt_.slice(br[1], br[2]));
       try {
         const der = F.util.hexToBytes(hx[1].replace(/\s+/g, '').replace(/(00)+$/i, '')), msg = F.pkcs7.messageFromAsn1(F.asn1.fromDer(F.util.createBuffer(der)));
         const part = new Uint8Array(br[1] + br[3]); part.set(bytes.subarray(br[0], br[0] + br[1]), 0); part.set(bytes.subarray(br[2], br[2] + br[3]), br[1]);
@@ -237,7 +241,7 @@ export function initSecure(X, c) {
           sigOk = cert.publicKey.verify(h2.digest().getBytes(), sgn.signature);
         }
         const self = cert && cert.isIssuer(cert);
-        row.ok = docOk && sigOk; row.text = `${name}: ${docOk ? 'the document is unchanged since signing' : 'THE DOCUMENT WAS CHANGED after signing'}; ${sigOk ? 'the signature is genuine' : 'the signature does not match'}.${self ? ' Self-signed, so you must decide whether to trust this person.' : ''}`;
+        row.ok = docOk && sigOk && covers; row.text = `${name}: ${!covers ? 'THE FILE WAS CHANGED OR EXTENDED after signing (the signature does not cover the whole file)' : docOk ? 'the document is unchanged since signing' : 'THE DOCUMENT WAS CHANGED after signing'}; ${sigOk ? 'the signature itself is genuine' : 'the signature does not match'}. ${self ? 'Self-signed, so you must decide whether to trust this person.' : 'The certificate was not checked against a list of trusted authorities.'}`;
       } catch (e) { row.text = 'A signature is present but cannot be read: ' + (e.message || e); }
       found.push(row);
     }

@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.20 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.21 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -22,7 +22,7 @@ PDFout (called Pageout in earlier versions) is a program for working with **PDF 
 
 It can also tidy a document. You can rotate a sideways page, delete a page you do not need, move pages up or down, add a blank page, or pull a few pages out into their own file. It can **black out** private details such as an ID number so that the text is really removed from the file, not just covered.
 
-**Good to know:** PDFout changes text one line at a time and does not re-flow whole paragraphs, so it is not a word processor. Text recognition (OCR) works for English and Thai pictures and scans. It does not open OFD files, and it does not read pages out loud.
+**Good to know:** PDFout changes text one line at a time and does not re-flow whole paragraphs, so it is not a word processor. Text recognition (OCR) works for English and Thai pictures and scans. It does not open OFD files, and it does not turn a PDF into Excel or PowerPoint (it can save tables as CSV for a spreadsheet). The whole program can be switched between English and Thai with the button at the top right.
 
 ## Who it is for
 
@@ -36,7 +36,41 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.20
+## What is new in 1.0.21
+
+**Important fix:** in 1.0.20, saving a PDF that contained Thai text failed with an error. That is fixed. If you installed 1.0.20, please update.
+
+**Thai interface.** Press the **ไทย / EN** button at the top right to switch every menu, button and message between Thai and English. PDFout starts in Thai on a Thai Windows.
+
+**Organise more.** **Crop** the margins (or trim white edges automatically), change the **paper size** (A4, Letter and more), **insert pages** from another PDF or picture, **split** a document into several files, reverse the order, select odd or even pages, find and delete empty pages, and **drag thumbnails** to reorder pages.
+
+![Crop](screenshots/15-crop.png)
+
+**Bookmarks and contents.** PDFout shows a document's bookmarks in the left panel, lets you add, rename and rearrange them, finds headings for you, and can add a clickable **contents page**.
+
+![Bookmarks](screenshots/16-bookmarks.png)
+
+**Compare two PDFs.** See which words changed page by page, or a picture of the pages with the differences in red.
+
+![Compare](screenshots/17-compare.png)
+
+**Search in many files.** Pick a folder and find a word in every PDF inside it. Click a result to open that page.
+
+**More to write with.** Stamps (Approved, Paid, Draft and Thai ones), tick, cross and date marks, pictures, ellipses, lines, arrows, underline and strikeout, links to a web address or a page, header and footer with page numbers and Bates numbers, and **replace text** everywhere at once.
+
+**Protect more.** **Redact words** or **personal details by pattern** (email, phone, Thai ID number, bank card), clean the hidden author and dates, flatten forms, and sign with a **digital signature** that anyone can check. You can create a signing ID inside PDFout or use your own certificate file (.pfx or .p12). **Check signatures** tells you who signed a file and whether it was changed afterwards.
+
+![Redact patterns](screenshots/18-redact-patterns.png)
+
+![Digital signature](screenshots/19-digital-signature.png)
+
+**Convert more.** Word files now keep **tables and pictures**. Also Markdown, a web page, **tables as CSV** for a spreadsheet, the pictures inside a PDF, a **PDF/A archive copy** for long term keeping, a grey copy and a clean copy of a scan. **Batch** runs one job (join, shrink, lock, unlock, clean, rotate, pages to pictures, pictures to PDFs) on many files.
+
+**Reading.** Fit whole page, dark pages for night reading, full screen, read aloud, and keyboard shortcuts for Page Up, Page Down, Home, End and Ctrl + F.
+
+![Thai interface](screenshots/20-thai-interface.png)
+
+## What was new in 1.0.20
 
 **Password protection.** Open a locked PDF by typing its password (a wrong password just asks again). To lock a PDF, use **Protect > Password**: choose a password to open it and, if you like, forbid printing, copying or editing. The file is saved with strong 256-bit encryption made on your computer. If you forget the password nobody can recover the file, so keep it somewhere safe.
 
@@ -154,7 +188,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 ## The interface
 
-- **Tabs and ribbon (top):** nine tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Edit** (edit text, add text, cover), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Form** (text field, checkbox, dropdown), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign, watermark, password), **Convert** (OCR, extract text, Word file of the text, export page or all pages as pictures, create a PDF from pictures), **Tools** (combine, compress, watermark, page numbers, form data, print) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
+- **Tabs and ribbon (top):** nine tabs. **Home** (open, combine, save, print, select, highlight, text, zoom), **Edit** (edit text, replace text, picture, marks, link, stamp, header and footer, page numbers), **Comment** (highlight, underline, strikeout, text, box, ellipse, line, arrow, pen, eraser, signature and ink colours), **Form** (text field, checkbox, dropdown), **Organise** (rotate, delete, copy, move, blank page, extract, crop, paper size, insert, split, reverse, odd and even pages, empty pages), **Protect** (redact, redact words and patterns, sign, digital signature, check signatures, watermark, password, clean metadata, flatten), **Convert** (OCR, text, Word, Markdown, web page, CSV tables, pictures, PDF/A, grey and clean copies), **Tools** (combine, compress, compare, find in files, bookmarks, properties, batch) and **View** (fit, dark pages, full screen, read aloud, shortcuts). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
 - **Left panel:** page buttons (rotate, delete, copy, move, blank, extract) above live thumbnails of every page.
 - **Right panel:** document title and author, ink colour and line width, export tools, and search results.
 
@@ -166,6 +200,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 - Zoom, fit to width and quick jumps between pages
 - Search text across the whole document with every match highlighted
 - Document panel showing the page count, title and author
+- Bookmarks panel, fit whole page, dark pages, full screen and read aloud
 
 ### Annotate
 
@@ -179,6 +214,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 - Draw your signature with a mouse, pen or touch screen and place it anywhere on a page
 - Resize the signature to fit the line
+- Digital signature with a certificate (your own .pfx file or an ID made inside PDFout), and a check that tells you whether a signed file was changed
 
 ### Redact for real
 
@@ -191,6 +227,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 - Insert blank pages
 - Extract the selected pages into a new PDF
 - Merge other PDFs into the document you have open
+- Crop, change the paper size, insert pages, split into several files, reverse, find empty pages, drag thumbnails to reorder
 
 ### Export
 
@@ -198,6 +235,8 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 - Edit the title and author stored in the file
 - Export any page as a PNG image
 - Extract all text from the document
+- Word with tables and pictures, Markdown, a web page, tables as CSV, the pictures inside the file
+- A PDF/A archive copy, a grey copy and a clean copy of a scan
 
 ## How to use it
 
@@ -217,10 +256,15 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 | Ctrl + mouse wheel | Zoom the page |
 | Ctrl + plus / minus | Zoom in / out |
 | Delete | Remove the selected mark |
+| Ctrl + F | Search the text |
+| Ctrl + P | Print |
+| Page Up / Page Down | Previous or next page |
+| Home / End | First or last page |
+| F11 | Full screen |
 
 ## Files and formats
 
-Opens PDF files (including ones locked with a password, if you know it), pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form data. Saves PDF, with an optional password. Exports pages as PNG, the document text as plain text and as a Word (.docx) file. OFD files are not supported.
+Opens PDF files (including ones locked with a password, if you know it), pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form data. Saves PDF, with an optional password or a digital signature, and PDF/A archive copies. Exports pages as PNG, the document text as plain text, Word (.docx) with tables and pictures, Markdown, HTML and CSV tables. OFD files are not supported.
 
 ## Private by design
 

@@ -8,6 +8,11 @@ export const TH = {
   'Add another PDF or image to this one': 'เพิ่ม PDF หรือรูปอื่นเข้ามาในไฟล์นี้', 'Fit': 'พอดีหน้า', 'Fit to width': 'พอดีความกว้าง', 'Zoom out': 'ซูมออก', 'Zoom in': 'ซูมเข้า', 'Zoom': 'ซูม', 'Line': 'เส้น',
   'OCR': 'อ่านข้อความ (OCR)', 'First turn a scan or picture into text': 'แปลงภาพสแกนหรือรูปให้เป็นข้อความก่อน',
   'Marks': 'เครื่องหมาย', 'Tick, cross, dot and the date': 'ติ๊กถูก กากบาท จุด และวันที่วันนี้', 'Pick a mark, then drag it onto the page. Good for forms that have no fill-in fields.': 'เลือกเครื่องหมาย แล้วลากไปวางบนหน้า เหมาะกับฟอร์มที่ไม่มีช่องกรอก', 'Tick': 'ติ๊กถูก', 'Cross': 'กากบาท', 'Dot': 'จุด', 'Circle': 'วงกลม', 'Star': 'ดาว', 'The date': 'วันที่วันนี้', 'Placed. Drag it where you want it.': 'วางแล้ว ลากไปไว้ตรงที่ต้องการ',
+  'Trim the margins. The page shows only what is left, but the trimmed part can still be inside the file. To hide private details for good, use Redact. Form fields on cropped pages become flat.': 'ตัดขอบ หน้าจะแสดงเฉพาะส่วนที่เหลือ แต่ส่วนที่ตัดอาจยังอยู่ในไฟล์ ถ้าต้องการซ่อนข้อมูลส่วนตัวถาวรให้ใช้ปิดบังข้อมูล ช่องฟอร์มในหน้าที่ตัดจะกลายเป็นภาพนิ่ง',
+  'This replaces your saved signing ID. Files you signed with the old one stay valid, but you can no longer sign as it. Continue?': 'การทำต่อจะแทนที่ตัวตนสำหรับเซ็นที่บันทึกไว้ ไฟล์ที่เซ็นไว้ด้วยอันเก่ายังใช้ได้ แต่คุณจะเซ็นด้วยอันเก่าอีกไม่ได้ ทำต่อหรือไม่?',
+  'The signing ID could not be remembered. It works for this signature only.': 'จำตัวตนสำหรับเซ็นไม่ได้ ใช้ได้กับลายเซ็นนี้เท่านั้น', 'None of the bookmarks point to a page': 'ไม่มีบุ๊กมาร์กที่ชี้ไปยังหน้าใดเลย',
+  'Bookmarks and document properties may still contain these words. Check them, or use Clean metadata.': 'บุ๊กมาร์กและคุณสมบัติเอกสารอาจยังมีคำเหล่านี้อยู่ ตรวจดู หรือใช้ล้างข้อมูลแฝง',
+  'Popular': 'ยอดนิยม', 'Write and fill': 'เขียนและกรอก', 'Pages': 'หน้า', 'Convert': 'แปลงไฟล์', 'All': 'ทั้งหมด',
   'Replace text': 'แทนที่ข้อความ', 'Find a word and change it everywhere': 'หาคำแล้วเปลี่ยนทุกที่ที่เจอ', 'Image': 'รูปภาพ', 'Place a picture on the page': 'วางรูปลงบนหน้า', 'Link': 'ลิงก์', 'Stamp': 'ตราประทับ',
   'Approved, Draft, Paid and more': 'อนุมัติ ฉบับร่าง ชำระแล้ว และอื่นๆ', 'Header and footer': 'หัวและท้ายกระดาษ', 'Text and numbers at the top or bottom of every page': 'ข้อความและตัวเลขที่ด้านบนหรือด้านล่างของทุกหน้า', 'Page numbers': 'เลขหน้า',
   // comment
@@ -144,6 +149,7 @@ export const TH = {
 // sentences that carry numbers or names
 const pl = (n, w) => w;
 export const RULES = [
+  [/^(\d+) sideways or upside-down pieces of text were not checked\. Look at the pages yourself\.$/, (a) => `ข้อความที่เอียงหรือกลับหัว ${a} ส่วนไม่ได้ถูกตรวจ โปรดดูหน้าด้วยตัวเอง`],
   [/^Page (\d+) of (\d+)$/, (a, b) => `หน้า ${a} จาก ${b}`],
   [/^Page (\d+)$/, (a) => `หน้า ${a}`],
   [/^Page (.+?)(?: \((\d+)\))?$/, (a, b) => `หน้า ${a}${b ? ` (${b})` : ''}`],

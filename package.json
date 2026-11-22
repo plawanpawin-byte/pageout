@@ -1,7 +1,7 @@
 {
-  "name": "pageout",
-  "productName": "Pageout",
-  "version": "1.0.14",
+  "name": "pdfout",
+  "productName": "PDFout",
+  "version": "1.0.15",
   "description": "Read, annotate, organise and sign PDF files. Everything stays on your computer.",
   "main": "main.js",
   "author": "Lookout",
@@ -12,8 +12,8 @@
     "dist": "electron-builder --win nsis --x64"
   },
   "build": {
-    "appId": "app.lookout.pageout",
-    "productName": "Pageout",
+    "appId": "app.lookout.pdfout",
+    "productName": "PDFout",
     "asar": true,
     "directories": {
       "output": "dist",
@@ -36,7 +36,7 @@
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "Pageout-Setup-${version}.exe",
+      "artifactName": "PDFout-Setup-${version}.exe",
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -44,7 +44,8 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "afterPack": "afterPack.js"
   },
   "devDependencies": {
     "electron": "^45.4.1",

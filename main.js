@@ -1,11 +1,11 @@
 'use strict';
-// Pageout main process. Local-only: no network access, files only via user-chosen dialogs.
+// PDFout main process. Local-only: no network access, files only via user-chosen dialogs.
 const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const TITLE = 'Pageout';
+const TITLE = 'PDFout';
 const granted = new Map(); // opaque id -> absolute path the user picked in a dialog
 let win = null;
 
@@ -41,6 +41,28 @@ function createWindow() {
 
 const filters = (list) => (list || []).map((f) => ({ name: f[0], extensions: f[1] }));
 
+// recent files: only paths the user picked in a dialog are ever remembered
+const recentFile = () => path.join(app.getPath('userData'), 'recent.json');
+function recentLoad() { try { const j = JSON.parse(fs.readFileSync(recentFile(), 'utf8')); return Array.isArray(j) ? j : []; } catch { return []; } }
+function recentSave(list) { try { fs.writeFileSync(recentFile(), JSON.stringify(list.slice(0, 60))); } catch {} }
+function recentAdd(p) {
+  const list = recentLoad(); const old = list.find((x) => x.p === p);
+  const rest = list.filter((x) => x.p !== p);
+  recentSave([{ p, star: old ? !!old.star : false, at: Date.now() }, ...rest]);
+}
+function readItem(p, opts = {}) {
+  const st = fs.statSync(p);
+  const item = { id: grant(p), name: path.basename(p), size: st.size };
+  if (opts.read !== false && st.size <= (opts.maxBytes || 512 * 1024 * 1024)) item.data = fs.readFileSync(p);
+  return item;
+}
+ipcMain.handle('recent:list', () => recentLoad().map((x) => {
+  try { const st = fs.statSync(x.p); return { id: grant(x.p), name: path.basename(x.p), dir: path.dirname(x.p), size: st.size, mtime: st.mtimeMs, star: !!x.star }; } catch { return null; }
+}).filter(Boolean));
+ipcMain.handle('recent:open', (_e, id) => { const p = pathOf(id); recentAdd(p); return readItem(p); });
+ipcMain.handle('recent:star', (_e, id) => { const p = pathOf(id); recentSave(recentLoad().map((x) => (x.p === p ? { ...x, star: !x.star } : x))); return true; });
+ipcMain.handle('recent:clear', () => { recentSave(recentLoad().filter((x) => x.star)); return true; });
+
 ipcMain.handle('file:open', async (_e, opts = {}) => {
   const r = await dialog.showOpenDialog(win, {
     properties: ['openFile', ...(opts.multi ? ['multiSelections'] : [])],
@@ -48,12 +70,7 @@ ipcMain.handle('file:open', async (_e, opts = {}) => {
   });
   if (r.canceled) return [];
   const out = [];
-  for (const p of r.filePaths) {
-    const st = fs.statSync(p);
-    const item = { id: grant(p), name: path.basename(p), size: st.size };
-    if (opts.read !== false && st.size <= (opts.maxBytes || 512 * 1024 * 1024)) item.data = fs.readFileSync(p);
-    out.push(item);
-  }
+  for (const p of r.filePaths) { out.push(readItem(p, opts)); recentAdd(p); }
   return out;
 });
 

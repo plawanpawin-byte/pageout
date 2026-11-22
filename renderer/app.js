@@ -57,12 +57,16 @@ const toolBtns = {};
 const bOpen = btn('Open', () => openFiles(false), 'primary');
 const bMerge = btn('Merge', () => openFiles(true));
 const bSave = btn('Save as', () => save());
+const bHome = btn('Home', () => {
+  if (pages.length && snapshot() !== savedSnap && !confirm('Close this document without saving?')) return;
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; fullRender();
+});
 const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
 const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-toolbar.append(bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),
+toolbar.append(bHome, bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),
   btn('-', () => setZoom(zoom / 1.15), 'icon'), btn('+', () => setZoom(zoom * 1.15), 'icon'), btn('Fit', () => fitWidth()), h('span', { class: 'grow' }), search);
 function refreshSwatches() { swatchBox.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === color)); }
 refreshSwatches();
@@ -74,6 +78,58 @@ function setTool(t) {
   if (t !== 'select') { selAnn = null; redrawOverlays(); }
 }
 setTool('select');
+
+
+// ---------- home screen (shown when no document is open) ----------
+const home = h('div', { class: 'home' });
+app.append(home);
+let homeTab = 'recent';
+const IC = (d) => { const s = sv('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); s.innerHTML = d; return s; };
+async function openThen(fn) { await openFiles(false); if (pages.length && fn) setTimeout(fn, 60); }
+async function createBlank() {
+  const d = await PDFDocument.create(); d.addPage([595.28, 841.89]);
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null;
+  const sid = await addSource('Untitled.pdf', new Uint8Array(await d.save()));
+  pages.push(...await pagesOf(sid)); sel.clear(); curPage = 0; selAnn = null; meta = { title: '', author: '' };
+  setTimeout(() => { savedSnap = snapshot(); }, 0); fullRender();
+}
+const QUICK = [
+  ['Annotate', 'Highlight, draw and add notes.', '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>', () => openThen(() => setTool('highlight'))],
+  ['Sign', 'Draw your signature and place it.', '<path d="M3 17c3-6 5-9 6-6s-2 7 1 6 4-5 5-3 3 2 6-1"/><path d="M3 21h18"/>', () => openThen(() => openSignature())],
+  ['Redact', 'Remove private details for real.', '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 12h10" stroke-width="4"/>', () => openThen(() => setTool('redact'))],
+  ['Organise pages', 'Rotate, move, delete or extract.', '<rect x="4" y="3" width="9" height="12" rx="1"/><rect x="11" y="9" width="9" height="12" rx="1"/>', () => openThen()],
+  ['Combine files', 'Join several PDFs into one.', '<rect x="3" y="4" width="8" height="10" rx="1"/><rect x="13" y="10" width="8" height="10" rx="1"/><path d="M11 9h2"/>', async () => { await openFiles(false); }],
+  ['Compress', 'Make the file smaller.', '<path d="M12 3v7m0 0l-3-3m3 3l3-3M12 21v-7m0 0l-3 3m3-3l3 3"/>', () => openThen(() => saveCompressed())],
+  ['Export text', 'Copy out all the words.', '<path d="M5 6h14M12 6v13M9 19h6"/>', () => openThen(() => extractText())],
+  ['Blank PDF', 'Start from an empty page.', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M12 11v6M9 14h6"/>', () => createBlank()],
+];
+const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+const fmtDate = (t) => { const d = new Date(t); return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
+async function renderHome() {
+  home.textContent = '';
+  const nav = h('div', { class: 'home-nav' },
+    h('div', { class: 'home-brand' }, h('img', { src: 'brand.svg', alt: '' }), h('span', { text: 'PDFout' })),
+    btn('Open PDF', () => openFiles(false), 'primary big'),
+    btn('Create PDF', () => createBlank(), 'big outline'),
+    h('div', { class: 'home-links' },
+      ...[['recent', 'Recent files'], ['starred', 'Starred files']].map(([k, n]) => h('button', { class: 'home-link' + (homeTab === k ? ' on' : ''), text: n, onclick: () => { homeTab = k; renderHome(); } }))),
+    h('div', { class: 'home-note', text: 'Everything stays on this computer. Nothing is uploaded.' }));
+  const quick = h('div', { class: 'quick' }, ...QUICK.map(([t, d, ic, fn]) => h('button', { class: 'qcard', onclick: fn }, IC(ic), h('div', {}, h('b', { text: t }), h('span', { text: d })))));
+  let list = [];
+  try { list = await window.host.recentList(); } catch {}
+  if (homeTab === 'starred') list = list.filter((x) => x.star);
+  const body = list.length ? h('table', { class: 'grid recent' },
+    h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: 'Name' }), h('th', { text: 'Folder' }), h('th', { text: 'Size' }))),
+    h('tbody', {}, list.map((x) => h('tr', { onclick: async () => { try { await openFiles(false, [await window.host.recentOpen(x.id)]); } catch (e) { toast('Cannot open: ' + (e.message || e)); } } },
+      h('td', {}, h('button', { class: 'star' + (x.star ? ' on' : ''), title: 'Star', text: x.star ? '\u2605' : '\u2606', onclick: async (e) => { e.stopPropagation(); await window.host.recentStar(x.id); renderHome(); } })),
+      h('td', {}, h('b', { text: x.name }), h('div', { class: 'muted', text: fmtDate(x.mtime) })),
+      h('td', { class: 'muted', text: x.dir }), h('td', { class: 'muted', text: fmtSize(x.size) })))))
+    : h('div', { class: 'home-empty' }, h('b', { text: homeTab === 'starred' ? 'No starred files yet' : 'No recent files yet' }), h('span', { text: 'Files you open will appear here. Click the star to keep one handy.' }));
+  home.append(nav, h('div', { class: 'home-main' },
+    h('h2', { text: 'Quick tools' }), quick,
+    h('div', { class: 'home-head' }, h('h2', { text: homeTab === 'starred' ? 'Starred files' : 'Recent files' }), list.length && homeTab === 'recent' ? btn('Clear list', async () => { await window.host.recentClear(); renderHome(); }) : null),
+    body));
+}
 
 // ---------- page model ----------
 async function addSource(name, bytes) {
@@ -101,8 +157,8 @@ async function pagesOf(srcId) {
   }
   return out;
 }
-async function openFiles(merge) {
-  const files = await window.host.openFiles({ multi: true, filters: [['PDF', ['pdf']]] });
+async function openFiles(merge, preset) {
+  const files = preset || await window.host.openFiles({ multi: true, filters: [['PDF', ['pdf']]] });
   if (!files.length) return;
   if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = files[0].name; lastSave = null; }
   for (const f of files) {
@@ -147,6 +203,8 @@ function renderVisible() {
   }
 }
 function fullRender() {
+  document.body.classList.toggle('is-home', !pages.length);
+  if (!pages.length) renderHome();
   updateButtons();
   renderThumbs(); renderStage(); renderRight(); renderStatus();
 }
@@ -507,7 +565,7 @@ async function pdfToJpegPdf(bytes, q, scale) {
     const base = pg.getViewport({ scale: 1 });
     out.addPage([base.width, base.height]).drawImage(img, { x: 0, y: 0, width: base.width, height: base.height });
   }
-  out.setProducer('Pageout');
+  out.setProducer('PDFout');
   return new Uint8Array(await out.save());
 }
 async function saveCompressed() {
@@ -603,7 +661,7 @@ async function buildPdf(list) {
     }
     page.setRotation(degrees((base + p.rot) % 360));
   }
-  out.setProducer('Pageout'); out.setCreator('Pageout');
+  out.setProducer('PDFout'); out.setCreator('PDFout');
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
   return await out.save();
 }

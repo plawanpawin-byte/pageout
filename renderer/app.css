@@ -6,9 +6,9 @@
 .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0}
 .textLayer ::selection{background:rgba(120,120,120,.5)}
 .textLayer .hit{background:rgba(230,200,74,.5);border-radius:2px}
-.tool-draw .textLayer,.tool-rect .textLayer,.tool-highlight .textLayer,.tool-redact .textLayer,.tool-text .textLayer,.tool-erase .textLayer{pointer-events:none}
+.tool-draw .textLayer,.tool-rect .textLayer,.tool-highlight .textLayer,.tool-redact .textLayer,.tool-text .textLayer,.tool-edittext .textLayer,.tool-erase .textLayer{pointer-events:none}
 .stage.tool-rect,.stage.tool-draw,.stage.tool-highlight,.stage.tool-redact{cursor:crosshair}
-.stage.tool-text{cursor:text}
+.stage.tool-text,.stage.tool-edittext{cursor:text}
 .stage.tool-erase{cursor:not-allowed}
 .thumb{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;border:1px solid transparent;border-radius:4px;cursor:pointer;margin-bottom:6px}
 .thumb:hover{background:var(--bg-3)}

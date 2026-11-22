@@ -64,7 +64,7 @@ const bRedo = btn('Redo', () => redo());
 const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-const TABS = [['home', 'Home'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['convert', 'Convert'], ['tools', 'Tools'], ['view', 'View']];
+const TABS = [['home', 'Home'], ['edit', 'Edit'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['convert', 'Convert'], ['tools', 'Tools'], ['view', 'View']];
 let ribbonTab = 'home', ribbonOpen = true;
 const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
@@ -83,7 +83,8 @@ function drawRibbon() {
   const zoomG = rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }));
   const groups = {
     home: [rg(rb('Open', () => openFiles(false)), rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Save as', () => save(), { dis: none }), rb('Print', () => printDoc(), { dis: none })),
-      rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text')), zoomG],
+      rg(T('select', 'Select'), T('edittext', 'Edit text'), T('highlight', 'Highlight'), T('text', 'Text')), zoomG],
+    edit: [rg(T('edittext', 'Edit text'), T('text', 'Text'), T('cover', 'Cover'), T('select', 'Select'), T('erase', 'Erase')), rg(rb('OCR', () => openOcr(), { dis: none, tip: 'First turn a scan or picture into text' }))],
     comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text'), T('rect', 'Box'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
     organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none }))],
     protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), rb('Watermark', () => openWatermark(), { dis: none }))],
@@ -101,6 +102,7 @@ function setTool(t) {
   drawRibbon();
   stage.className = 'stage tool-' + t;
   if (t !== 'select') { selAnn = null; redrawOverlays(); }
+  if (t === 'edittext') prepareEdit();
 }
 setTool('select');
 
@@ -119,6 +121,7 @@ async function createBlank() {
   setTimeout(() => { savedSnap = snapshot(); }, 0); fullRender();
 }
 const QUICK = [
+  ['Edit text', 'Change the words already in a PDF.', '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M4 7h6M4 11h4"/>', () => openThen(() => setTool('edittext'))],
   ['Annotate', 'Highlight, draw and add notes.', '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>', () => openThen(() => setTool('highlight'))],
   ['Sign', 'Draw your signature and place it.', '<path d="M3 17c3-6 5-9 6-6s-2 7 1 6 4-5 5-3 3 2 6-1"/><path d="M3 21h18"/>', () => openThen(() => openSignature())],
   ['Redact', 'Remove private details for real.', '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 12h10" stroke-width="4"/>', () => openThen(() => setTool('redact'))],
@@ -411,6 +414,7 @@ function makeOverlay(p) {
   const svg = sv('svg', { class: 'ov', viewBox: `0 0 ${cw} ${ch}` });
   svg.dataset.pid = p.id;
   for (const a of p.annots) svg.append(drawAnn(p, a, cw, ch));
+  if (tool === 'edittext' && p.src && lineCache.has(p.src + ':' + p.index)) for (const l of lineCache.get(p.src + ':' + p.index)) { const q1 = P(p, l.u0, l.v0, cw, ch), q2 = P(p, l.u1, l.v1, cw, ch); svg.prepend(sv('rect', { class: 'eline', x: Math.min(q1[0], q2[0]), y: Math.min(q1[1], q2[1]), width: Math.abs(q1[0] - q2[0]), height: Math.abs(q1[1] - q2[1]), fill: 'rgba(168,199,250,.10)', stroke: '#a8c7fa', 'stroke-dasharray': '3 3', 'stroke-width': 1 })); }
   svg.addEventListener('pointerdown', (e) => onPointerDown(e, p, svg, cw, ch));
   return svg;
 }
@@ -426,7 +430,7 @@ function drawAnn(p, a, cw, ch) {
     const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
     const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, hh = Math.max(...ys) - y;
     if (a.type === 'image') g.append(sv('image', { href: a.data, x, y, width: w, height: hh, preserveAspectRatio: 'none' }));
-    else g.append(sv('rect', { x, y, width: w, height: hh, fill: a.type === 'rect' ? 'none' : a.type === 'redact' ? '#000' : a.type === 'cover' ? '#fff' : a.color, 'fill-opacity': a.type === 'highlight' ? 0.4 : 1, stroke: a.type === 'rect' ? a.color : 'none', 'stroke-width': a.w || 2, style: a.type === 'highlight' ? 'mix-blend-mode:multiply' : '' }));
+    else g.append(sv('rect', { x, y, width: w, height: hh, fill: a.type === 'rect' ? 'none' : a.type === 'redact' ? '#000' : a.type === 'cover' ? (a.fillc || '#fff') : a.color, 'fill-opacity': a.type === 'highlight' ? 0.4 : 1, stroke: a.type === 'rect' ? a.color : 'none', 'stroke-width': a.w || 2, style: a.type === 'highlight' ? 'mix-blend-mode:multiply' : '' }));
     if (sel_) { g.append(sv('rect', { x, y, width: w, height: hh, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3' })); const hd = sv('rect', { x: x + w - 5, y: y + hh - 5, width: 10, height: 10, fill: '#ddd', stroke: '#444', class: 'rs', style: 'cursor:nwse-resize' }); g.append(hd); }
   } else if (a.type === 'draw') {
     const d = a.pts.map(([u, v], i) => { const [x, y] = P(p, u, v, cw, ch); return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }).join(' ');
@@ -435,7 +439,7 @@ function drawAnn(p, a, cw, ch) {
   } else if (a.type === 'text') {
     const [bw] = dispDims(p); const fs = a.fs * bw * zoom * (p.rot % 180 ? 1 : 1);
     const [x, y] = P(p, a.x, a.y, cw, ch);
-    const t = sv('text', { x: 0, y: 0, fill: a.color, 'fill-opacity': a.op == null ? 1 : a.op, 'font-size': fs, 'font-family': '"Noto Sans Thai", Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', 'text-anchor': a.mid ? 'middle' : 'start', transform: `translate(${x} ${y}) rotate(${p.rot + (a.ang || 0)})`, style: 'white-space:pre' });
+    const t = sv('text', { x: 0, y: 0, fill: a.color, 'fill-opacity': a.op == null ? 1 : a.op, 'font-size': fs, 'font-weight': a.bold ? 700 : 400, 'font-family': '"Noto Sans Thai", Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', 'text-anchor': a.mid ? 'middle' : 'start', transform: `translate(${x} ${y}) rotate(${p.rot + (a.ang || 0)})`, style: 'white-space:pre' });
     a.text.split('\n').forEach((ln, i) => { const s = sv('tspan', { x: 0, dy: i ? fs * 1.2 : 0 }); s.textContent = ln || ' '; t.append(s); });
     g.append(t);
     if (sel_) { requestAnimationFrame(() => { try { const b = t.getBBox(); const m = sv('rect', { x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 6, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3', transform: t.getAttribute('transform') }); g.append(m); } catch {} }); }
@@ -476,6 +480,10 @@ function onPointerDown(e, p, svg, cw, ch) {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
     redrawOverlays(); renderRight();
     return;
+  }
+  if (tool === 'edittext') {
+    if (aEl) { const an = p.annots.find((x) => x.id === aEl.dataset.aid); if (an && an.type === 'text') editText(p, an, 0, 0, e.clientX, e.clientY); return; }
+    const [u, v] = localUV(e, svg, p, cw, ch); editExisting(p, u, v); return;
   }
   if (tool === 'text') {
     const [u, v] = localUV(e, svg, p, cw, ch);
@@ -727,6 +735,82 @@ function openPageNumbers() {
 const openFormData = async () => { const f = await window.host.openFiles({ multi: true, filters: [['FDF / XFDF form data', ['fdf', 'xfdf']]] }); if (f.length) await loadFiles(f, true); };
 const createFromImages = async () => { const f = await window.host.openFiles({ multi: true, filters: [['Images', ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']]] }); if (f.length) await loadFiles(f, false); };
 
+
+// ---------- edit the text that is already in a PDF ----------
+const lineCache = new Map();
+async function linesFor(p) {
+  if (!p.src) return [];
+  const key = p.src + ':' + p.index; if (lineCache.has(key)) return lineCache.get(key);
+  const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
+  const vp = pg.getViewport({ scale: 1, rotation: pg.rotate });
+  const tc = await pg.getTextContent();
+  const lines = [];
+  for (const it of tc.items) {
+    if (!it.str || !it.str.trim()) continue;
+    const tr = it.transform, fs = Math.hypot(tr[2], tr[3]) || it.height || 10, x = tr[4], y = tr[5];
+    const l = lines.find((q) => Math.abs(q.y - y) < 0.35 * fs && x >= q.x1 - 0.3 * fs && x - q.x1 < 1.5 * fs);
+    if (l) { l.text += (x - l.x1 > 0.15 * fs ? ' ' : '') + it.str; l.x1 = x + it.width; l.fs = Math.max(l.fs, fs); }
+    else lines.push({ text: it.str, x0: x, x1: x + it.width, y, fs, fn: it.fontName });
+  }
+  const out = lines.map((l) => {
+    const a1 = vp.convertToViewportPoint(l.x0, l.y + 0.9 * l.fs), a2 = vp.convertToViewportPoint(l.x1, l.y - 0.25 * l.fs), bl = vp.convertToViewportPoint(l.x0, l.y);
+    return { text: l.text, fs: l.fs, fn: l.fn, u0: Math.min(a1[0], a2[0]) / vp.width, u1: Math.max(a1[0], a2[0]) / vp.width, v0: Math.min(a1[1], a2[1]) / vp.height, v1: Math.max(a1[1], a2[1]) / vp.height, vb: bl[1] / vp.height };
+  });
+  lineCache.set(key, out); return out;
+}
+async function prepareEdit() { await Promise.all(pages.map((p) => linesFor(p))); if (tool === 'edittext') redrawOverlays(); }
+const toHex = (r, g, b) => '#' + [r, g, b].map((n) => Math.round(n).toString(16).padStart(2, '0')).join('');
+// looks at the picture of the page behind a line to pick the patch colour (background) and the text colour
+async function sampleColors(p, l) {
+  try {
+    const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
+    const vp = pg.getViewport({ scale: 1.5, rotation: pg.rotate });
+    const cv = h('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    const g = cv.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: g, viewport: vp }).promise;
+    let bold = false; try { const f = pg.commonObjs.get(l.fn); bold = !!(f && (f.bold || /bold|black|heavy|semibold|demi/i.test(f.loadedName || f.name || ''))); } catch {}
+    const x0 = Math.max(0, Math.floor((l.u0 - 0.004) * cv.width)), x1 = Math.min(cv.width, Math.ceil((l.u1 + 0.004) * cv.width));
+    const y0 = Math.max(0, Math.floor((l.v0 - 0.004) * cv.height)), y1 = Math.min(cv.height, Math.ceil((l.v1 + 0.004) * cv.height));
+    const w = x1 - x0, hh = y1 - y0; if (w < 2 || hh < 2) return { bg: '#ffffff', fg: '#000000', bold };
+    const d = g.getImageData(x0, y0, w, hh).data, cnt = new Map();
+    const at = (x, y) => (y * w + x) * 4;
+    for (let x = 0; x < w; x++) for (const y of [0, hh - 1]) { const i = at(x, y), k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); cnt.set(k, (cnt.get(k) || 0) + 1); }
+    for (let y = 0; y < hh; y++) for (const x of [0, w - 1]) { const i = at(x, y), k = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4); cnt.set(k, (cnt.get(k) || 0) + 1); }
+    const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    // average the real pixels that fall in the winning bucket
+    let br = 0, bgc = 0, bb = 0, bn = 0;
+    for (let i = 0; i < d.length; i += 4) if ((((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4)) === top) { br += d[i]; bgc += d[i + 1]; bb += d[i + 2]; bn++; }
+    const B = [br / bn, bgc / bn, bb / bn];
+    let far = [];
+    for (let i = 0; i < d.length; i += 4) { const dist = Math.abs(d[i] - B[0]) + Math.abs(d[i + 1] - B[1]) + Math.abs(d[i + 2] - B[2]); far.push([dist, d[i], d[i + 1], d[i + 2]]); }
+    far.sort((a, b) => b[0] - a[0]); const best = far.slice(0, Math.max(5, Math.floor(far.length * 0.01)));
+    const F = best.reduce((s, q) => [s[0] + q[1], s[1] + q[2], s[2] + q[3]], [0, 0, 0]).map((v) => v / best.length);
+    const fg = best[0][0] < 90 ? '#000000' : toHex(F[0], F[1], F[2]);
+    return { bg: toHex(B[0], B[1], B[2]), fg, bold };
+  } catch { return { bg: '#ffffff', fg: '#000000', bold: false }; }
+}
+async function editExisting(p, u, v) {
+  const lines = await linesFor(p); const pad = 0.004;
+  const hit = lines.filter((l) => u >= l.u0 - pad && u <= l.u1 + pad && v >= l.v0 - pad && v <= l.v1 + pad).sort((x, y) => (x.u1 - x.u0) * (x.v1 - x.v0) - (y.u1 - y.u0) * (y.v1 - y.v0))[0];
+  if (!hit) { toast(p.src ? 'No text here. If this page is a picture, use Convert > OCR first.' : 'This page has no text to edit'); return; }
+  const col = await sampleColors(p, hit);
+  const ta = h('textarea', { rows: 2, style: 'width:420px;font-family:inherit' }); ta.value = hit.text;
+  const perm = h('input', { type: 'checkbox' });
+  let back;
+  const apply = (removeOnly) => {
+    const text = ta.value.trim(); const [bw, bh] = dispDims(p);
+    commit();
+    p.annots.push(mkAnn({ type: 'cover', x: hit.u0 - 0.002, y: hit.v0 - 0.002, bw: hit.u1 - hit.u0 + 0.004, bh: hit.v1 - hit.v0 + 0.004, fillc: col.bg, perm: perm.checked }));
+    if (text && !removeOnly) p.annots.push(mkAnn({ type: 'text', x: hit.u0, y: hit.vb - (0.8 * hit.fs) / bh, text, fs: hit.fs / bw, color: col.fg, bold: col.bold }));
+    back.remove(); redrawOverlays(); renderRight(); toast(removeOnly ? 'Text removed' : 'Text changed');
+  };
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'Edit text' }),
+    h('div', { class: 'muted', text: 'The new words use a standard font (Helvetica, or Noto Sans Thai for Thai), not the original one.' }), ta,
+    h('label', { class: 'row' }, perm, h('span', { text: 'Remove the original text permanently (this page is then saved as a picture with your new text on top)' })),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Delete this text', () => apply(true)), btn('Cancel', () => back.remove()), btn('OK', () => apply(false), 'primary'))));
+  document.body.append(back); ta.focus(); ta.select();
+}
+
 // ---------- signature ----------
 function openSignature() {
   if (!pages.length) { toast('Open a PDF first'); return; }
@@ -876,7 +960,7 @@ async function rasterPage(p, list, scale = 2.5) {
   const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
   await pg.render({ canvasContext: ctx, viewport: vp }).promise;
   ctx.fillStyle = '#000';
-  for (const a of list) ctx.fillRect(a.x * cv.width, a.y * cv.height, a.bw * cv.width, a.bh * cv.height);
+  for (const a of list) { ctx.fillStyle = a.perm ? (a.fillc || '#fff') : '#000'; ctx.fillRect(a.x * cv.width, a.y * cv.height, a.bw * cv.width, a.bh * cv.height); }
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -898,13 +982,13 @@ const mixedWidth = (F, text, size) => (text.match(/[฀-๿]+|[^฀-๿]+/g) || 
 async function buildPdf(list) {
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
-  const F = { latin: font, thai: null };
+  const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
   const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
   if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
   const cache = new Map();
   for (const p of list) {
     let page; let q = p;
-    const redacts = p.annots.filter((a) => a.type === 'redact');
+    const redacts = p.annots.filter((a) => a.type === 'redact' || a.perm);
     if (!p.src) { page = out.addPage([p.w, p.h]); }
     else if (redacts.length) {
       const img = await out.embedPng(await rasterPage(p, redacts));
@@ -921,14 +1005,14 @@ async function buildPdf(list) {
     const box = p.src && !redacts.length ? page.getCropBox() : { x: 0, y: 0, width: q.w, height: q.h };
     const [dw, dh] = dispDims(q);
     for (const a of p.annots) {
-      if (a.type === 'redact') continue;
+      if (a.type === 'redact' || a.perm) continue;
       const pt = (u, v) => dispToPdf({ ...q, w: box.width, h: box.height }, u, v, box);
       const svgPt = (u, v) => { const [x, y] = pt(u, v); return [x - box.x, box.y + box.height - y]; };
       const origin = { x: box.x, y: box.y + box.height };
       if (a.type === 'rect' || a.type === 'highlight' || a.type === 'cover') {
         const c = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => svgPt(u, v));
         const d = 'M' + c.map((q) => q.join(' ')).join(' L') + ' Z';
-        if (a.type === 'cover') page.drawSvgPath(d, { ...origin, color: rgb(1, 1, 1), opacity: 1, borderWidth: 0 });
+        if (a.type === 'cover') page.drawSvgPath(d, { ...origin, color: hex(a.fillc || '#ffffff'), opacity: 1, borderWidth: 0 });
         else if (a.type === 'highlight') page.drawSvgPath(d, { ...origin, color: hex(a.color), opacity: 0.4, borderWidth: 0 });
         else page.drawSvgPath(d, { ...origin, borderColor: hex(a.color), borderWidth: a.w * (dw / 800), color: undefined, opacity: 0, borderOpacity: 1 });
       } else if (a.type === 'draw') {
@@ -940,8 +1024,8 @@ async function buildPdf(list) {
         lines.forEach((ln, i) => {
           let [x, y] = pt(a.x, a.y + (size * 0.8 + i * size * 1.2) / dh);
           const th = ((q.r0 - ang) * Math.PI) / 180;
-          if (a.mid) { const w = mixedWidth(F, ln, size); x -= (w / 2) * Math.cos(th); y -= (w / 2) * Math.sin(th); }
-          drawMixed(page, F, ln, x, y, size, hex(a.color), q.r0 - ang, a.op == null ? 1 : a.op);
+          if (a.mid) { const w = mixedWidth(a.bold ? { ...F, latin: F.bold } : F, ln, size); x -= (w / 2) * Math.cos(th); y -= (w / 2) * Math.sin(th); }
+          drawMixed(page, a.bold ? { ...F, latin: F.bold } : F, ln, x, y, size, hex(a.color), q.r0 - ang, a.op == null ? 1 : a.op);
         });
       } else if (a.type === 'image') {
         const img = await out.embedPng(a.data);

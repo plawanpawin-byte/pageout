@@ -36,6 +36,7 @@ let undoStack = [], redoStack = [];
 let fileName = '';
 let lastSave = null;                // {id,name}
 let meta = { title: '', author: '' };
+let protectOpts = null;             // {user, owner, print, copy, edit} applied when saving
 let hits = [];
 
 const TOOLS = [['select', 'Select'], ['highlight', 'Highlight'], ['text', 'Text'], ['rect', 'Box'], ['draw', 'Pen'], ['redact', 'Redact'], ['cover', 'Cover'], ['sign', 'Sign'], ['erase', 'Erase']];
@@ -64,7 +65,7 @@ const bRedo = btn('Redo', () => redo());
 const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-const TABS = [['home', 'Home'], ['edit', 'Edit'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['convert', 'Convert'], ['tools', 'Tools'], ['view', 'View']];
+const TABS = [['home', 'Home'], ['edit', 'Edit'], ['comment', 'Comment'], ['form', 'Form'], ['organise', 'Organise'], ['protect', 'Protect'], ['convert', 'Convert'], ['tools', 'Tools'], ['view', 'View']];
 let ribbonTab = 'home', ribbonOpen = true;
 const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
@@ -86,9 +87,10 @@ function drawRibbon() {
       rg(T('select', 'Select'), T('edittext', 'Edit text'), T('highlight', 'Highlight'), T('text', 'Text')), zoomG],
     edit: [rg(T('edittext', 'Edit text'), T('text', 'Text'), T('cover', 'Cover'), T('select', 'Select'), T('erase', 'Erase')), rg(rb('OCR', () => openOcr(), { dis: none, tip: 'First turn a scan or picture into text' }))],
     comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text'), T('rect', 'Box'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
+    form: [rg(T('ftext', 'Text field'), T('fcheck', 'Checkbox'), T('fdrop', 'Dropdown'), T('select', 'Select'), T('erase', 'Erase')), rg(rb('Form data', () => openFormData(), { dis: none, tip: 'Fill the form from an FDF or XFDF file' }))],
     organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none }))],
-    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), rb('Watermark', () => openWatermark(), { dis: none }))],
-    convert: [rg(rb('OCR', () => openOcr(), { dis: none, tip: 'Recognise text in scans and pictures' }), rb('Extract all text', () => extractText(), { dis: none }), rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Export images', () => exportImages(), { dis: none, tip: 'Save every page as a PNG picture' }), rb('From images', () => createFromImages(), { tip: 'Create a PDF from pictures' }))],
+    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Password', () => openProtect(), { dis: none, tip: 'Lock the saved PDF with a password' }))],
+    convert: [rg(rb('OCR', () => openOcr(), { dis: none, tip: 'Recognise text in scans and pictures' }), rb('Extract all text', () => extractText(), { dis: none }), rb('Word (text)', () => exportWord(), { dis: none, tip: 'Save the text as a Word file. Pictures and layout are not kept.' }), rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Export images', () => exportImages(), { dis: none, tip: 'Save every page as a PNG picture' }), rb('From images', () => createFromImages(), { tip: 'Create a PDF from pictures' }))],
     tools: [rg(rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save a smaller copy' }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Page numbers', () => openPageNumbers(), { dis: none }), rb('Form data', () => openFormData(), { dis: none, tip: 'Fill form fields from an FDF or XFDF file' }), rb('Print', () => printDoc(), { dis: none }))],
     view: [zoomG],
   };
@@ -132,6 +134,7 @@ const QUICK = [
   ['Recognise text (OCR)', 'Turn scans and photos into real text.', '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 9h8M8 12h8M8 15h5"/>', () => openThen(() => openOcr())],
   ['Images to PDF', 'Make a PDF from pictures.', '<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M5 18l5-5 3 3 3-3 3 3"/>', () => createFromImages()],
   ['Export images', 'Save every page as a picture.', '<path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/>', () => openThen(() => exportImages())],
+  ['Password', 'Lock the saved PDF with a password.', '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>', () => openThen(() => openProtect())],
   ['Watermark', 'Stamp text across the pages.', '<path d="M12 3c3 4 6 7 6 10a6 6 0 01-12 0c0-3 3-6 6-10z"/>', () => openThen(() => openWatermark())],
   ['Page numbers', 'Number every page.', '<path d="M6 4h12v16H6z"/><path d="M10 15h4"/>', () => openThen(() => openPageNumbers())],
   ['Print', 'Send the document to a printer.', '<path d="M7 8V3h10v5M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>', () => openThen(() => printDoc())],
@@ -167,14 +170,51 @@ async function renderHome() {
 }
 
 // ---------- page model ----------
+async function askPassword(name, wrong) {
+  return new Promise((res) => {
+    const pw = h('input', { type: 'password', style: 'width:100%' });
+    let back;
+    const done = (v) => { back.remove(); res(v); };
+    pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(pw.value); if (e.key === 'Escape') done(null); });
+    back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'This PDF is locked' }),
+      h('div', { class: 'muted', text: name }),
+      wrong ? h('div', { style: 'color:#f28b82;margin:6px 0', text: 'That password is not right. Try again.' }) : h('div', { class: 'muted', style: 'margin:6px 0', text: 'Type the password to open it. It stays on this computer.' }),
+      h('label', { class: 'field' }, 'Password', pw),
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Cancel', () => done(null)), btn('Unlock', () => done(pw.value), 'primary'))));
+    document.body.append(back); setTimeout(() => pw.focus(), 50);
+  });
+}
 async function addSource(name, bytes) {
   const id = uid();
-  const pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
+  const open = (b, password) => pdfjs.getDocument({ data: b.slice(), password: password || '', isEvalSupported: false, enableXfa: false }).promise;
+  let pdf = null, pw = '', wrong = false, locked = false;
+  for (;;) {
+    try { pdf = await open(bytes, pw); break; }
+    catch (e) {
+      if (!e || e.name !== 'PasswordException') throw e;
+      locked = true; wrong = e.code === 2;
+      const v = await askPassword(name, wrong);
+      if (v === null) throw new Error('The PDF was not unlocked');
+      pw = v;
+    }
+  }
   const ent = { name, bytes, pdf, fields: [], vals: {} };
   sources.set(id, ent);
+  let d = null;
+  try { d = await PDFDocument.load(bytes); }
+  catch (e) {
+    if (/encrypt/i.test(String((e && e.message) || ''))) {
+      // pdf-lib cannot read protected files, so keep a plain copy of the unlocked document for every later step
+      try {
+        d = await PDFDocument.load(bytes, { password: pw });
+        const plain = new Uint8Array(await d.save());
+        ent.bytes = plain; ent.pdf = await open(plain, '');
+        toast(locked ? 'Unlocked. Saving makes a copy without the password; add one in Protect > Password.' : 'This PDF had restrictions; the copy you save has none.');
+      } catch (e2) { sources.delete(id); throw new Error('Could not unlock this PDF: ' + ((e2 && e2.message) || e2)); }
+    } else { try { d = await PDFDocument.load(bytes, { ignoreEncryption: true }); } catch {} }
+  }
   try {
-    const d = await PDFDocument.load(bytes, { ignoreEncryption: true });
-    ent.fields = d.getForm().getFields().map((f) => {
+    if (d) ent.fields = d.getForm().getFields().map((f) => {
       const t = f.constructor.name;
       // the bundled pdf-lib is minified, so class names are unreliable: detect the field type by what it can do
       const kind = typeof f.setText === 'function' ? 'text' : typeof f.check === 'function' ? 'check' : typeof f.isOffToggleable === 'function' ? 'radio' : (typeof f.isEditable === 'function' || typeof f.isMultiselect === 'function') ? 'choice' : (/TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : null);
@@ -422,9 +462,23 @@ function redrawOverlays() {
   pageEls.forEach((el, id) => { const p = pages.find((x) => x.id === id); const old = el.querySelector('svg.ov'); if (old && p) old.replaceWith(makeOverlay(p)); });
 }
 const P = (p, u, v, cw, ch) => { const [a, b] = rotFwd(u, v, p.rot); return [a * cw, b * ch]; };
+const FIELD_TYPES = ['ftext', 'fcheck', 'fdrop'];
+const isField = (a) => FIELD_TYPES.includes(a.type);
 function drawAnn(p, a, cw, ch) {
   const g = sv('g'); g.dataset.aid = a.id;
   const sel_ = selAnn && selAnn.annId === a.id;
+  if (isField(a)) {
+    const pts = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => P(p, u, v, cw, ch));
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, hh = Math.max(...ys) - y;
+    g.append(sv('rect', { x, y, width: w, height: hh, fill: 'rgba(168,199,250,.28)', stroke: '#6b9be8', 'stroke-width': 1.5, 'stroke-dasharray': sel_ ? '4 3' : '' }));
+    const lab = sv('text', { x: x + 4, y: y + Math.min(hh - 3, 13), fill: '#1b3a6b', 'font-size': 11, 'font-family': 'Segoe UI, Arial', style: 'pointer-events:none' });
+    lab.textContent = (a.type === 'fcheck' ? '☑ ' : a.type === 'fdrop' ? '▾ ' : '') + (a.fname || '');
+    g.append(lab);
+    if (sel_) { const hd = sv('rect', { x: x + w - 5, y: y + hh - 5, width: 10, height: 10, fill: '#ddd', stroke: '#444', class: 'rs', style: 'cursor:nwse-resize' }); g.append(hd); }
+    g.style.cursor = tool === 'select' ? 'move' : 'default';
+    return g;
+  }
   if (a.type === 'rect' || a.type === 'highlight' || a.type === 'redact' || a.type === 'cover' || a.type === 'image') {
     const pts = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => P(p, u, v, cw, ch));
     const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
@@ -509,10 +563,35 @@ function onPointerDown(e, p, svg, cw, ch) {
   const up = () => {
     svg.removeEventListener('pointermove', mv); svg.removeEventListener('pointerup', up);
     const tiny = ann.type === 'draw' ? ann.pts.length < 2 : (ann.bw < 0.004 || ann.bh < 0.004);
-    if (!tiny) { commit(); p.annots.push(ann); }
+    if (!tiny) { commit(); if (isField(ann)) { ann.fname = nextFieldName(ann.type); } p.annots.push(ann); }
     tmpRef.el.remove(); redrawOverlays();
+    if (!tiny && isField(ann)) editField(ann);
   };
   svg.addEventListener('pointermove', mv); svg.addEventListener('pointerup', up);
+}
+function nextFieldName(type) {
+  const base = type === 'fcheck' ? 'Check' : type === 'fdrop' ? 'Choice' : 'Text';
+  const used = new Set(pages.flatMap((q) => q.annots.filter(isField).map((x) => x.fname)));
+  let n = 1; while (used.has(base + n)) n++;
+  return base + n;
+}
+function editField(ann) {
+  const nm = h('input', { type: 'text', value: ann.fname || '', style: 'width:100%' });
+  const opts = ann.type === 'fdrop' ? h('textarea', { rows: 4, style: 'width:100%', placeholder: 'One choice per line' }) : null;
+  if (opts) opts.value = (ann.opts || ['Option 1', 'Option 2', 'Option 3']).join('\n');
+  let back;
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: ann.type === 'fcheck' ? 'Checkbox' : ann.type === 'fdrop' ? 'Dropdown' : 'Text field' }),
+    h('label', { class: 'field' }, 'Field name', nm), opts ? h('label', { class: 'field' }, 'Choices', opts) : null,
+    h('div', { class: 'muted', style: 'margin:4px 0', text: 'Saved as a real fill-in field. Anyone can click it and type in any PDF reader.' }),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Delete field', () => { commit(); pages.forEach((q) => { q.annots = q.annots.filter((x) => x.id !== ann.id); }); redrawOverlays(); back.remove(); }),
+      btn('OK', () => {
+        const name = nm.value.trim(); if (!name) return;
+        const clash = pages.some((q) => q.annots.some((x) => isField(x) && x.id !== ann.id && x.fname === name));
+        if (clash) { toast('Another field already has that name'); return; }
+        commit(); ann.fname = name; if (opts) ann.opts = opts.value.split('\n').map((x) => x.trim()).filter(Boolean);
+        redrawOverlays(); back.remove();
+      }, 'primary'))));
+  document.body.append(back); setTimeout(() => { nm.focus(); nm.select(); }, 50);
 }
 function editText(p, ann, u, v, cx, cy) {
   const ta = h('textarea', { rows: 3, style: 'width:300px', placeholder: 'Type text' });
@@ -709,6 +788,25 @@ function openWatermark() {
       }, 'primary'))));
   document.body.append(back);
 }
+function openProtect() {
+  if (!pages.length) { toast('Open a PDF first'); return; }
+  const cur = protectOpts || { user: '', owner: '', print: true, copy: true, edit: true };
+  const u = h('input', { type: 'password', value: cur.user, style: 'width:100%' }), o = h('input', { type: 'password', value: cur.owner, style: 'width:100%' });
+  const cb = (k, t) => { const i = h('input', { type: 'checkbox' }); i.checked = !!cur[k]; i._k = k; return [i, h('label', { class: 'field', style: 'flex-direction:row;gap:8px;align-items:center' }, i, t)]; };
+  const [ip, lp] = cb('print', 'Allow printing'), [ic, lc] = cb('copy', 'Allow copying text'), [ie, le] = cb('edit', 'Allow editing and notes');
+  let back;
+  back = h('div', { class: 'modal-back' }, h('div', { class: 'modal' }, h('h2', { text: 'Password for the saved PDF' }),
+    h('div', { class: 'muted', style: 'margin-bottom:6px', text: 'Applied when you save. Strong 256-bit encryption, made on this computer. If you forget the password nobody can recover the file, so keep it somewhere safe.' }),
+    h('label', { class: 'field' }, 'Password to open', u), h('label', { class: 'field' }, 'Password to change the limits below (optional)', o), lp, lc, le,
+    h('div', { class: 'row', style: 'justify-content:flex-end' },
+      btn('Remove password', () => { protectOpts = null; back.remove(); toast('The next save will have no password'); }), btn('Cancel', () => back.remove()),
+      btn('Set', () => {
+        if (!u.value && !o.value && ip.checked && ic.checked && ie.checked) { protectOpts = null; back.remove(); toast('No password set'); return; }
+        protectOpts = { user: u.value, owner: o.value, print: ip.checked, copy: ic.checked, edit: ie.checked };
+        back.remove(); toast('Done. Save the file to apply it.');
+      }, 'primary'))));
+  document.body.append(back); setTimeout(() => u.focus(), 50);
+}
 function openPageNumbers() {
   if (!pages.length) { toast('Open a PDF first'); return; }
   const fmt = h('select', {}, h('option', { value: 'n', text: '1, 2, 3' }), h('option', { value: 'pn', text: 'Page 1' }), h('option', { value: 'nn', text: '1 / 4' }), h('option', { value: 'pnn', text: 'Page 1 of 4' }));
@@ -861,7 +959,7 @@ async function renderRight() {
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
   right.append(h('h3', { text: 'Ink' }), swatchBox, h('label', { class: 'field', style: 'margin-top:10px' }, 'Line width', sizeIn));
-  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Recognise text (OCR)', () => openOcr()), btn('Export page as PNG', () => exportPng()), btn('Export all pages as images', () => exportImages()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed()), btn('Watermark', () => openWatermark()), btn('Page numbers', () => openPageNumbers()), btn('Print', () => printDoc())));
+  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Recognise text (OCR)', () => openOcr()), btn('Save as Word (text)', () => exportWord()), btn('Password', () => openProtect()), btn('Export page as PNG', () => exportPng()), btn('Export all pages as images', () => exportImages()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed()), btn('Watermark', () => openWatermark()), btn('Page numbers', () => openPageNumbers()), btn('Print', () => printDoc())));
   const cur = pages[curPage]; const ent = cur && cur.src ? sources.get(cur.src) : null;
   if (ent && ent.fields.length) {
     right.append(h('h3', { text: 'Form fields' }));
@@ -951,6 +1049,58 @@ async function extractText() {
   if (r) toast('Saved ' + r.name);
 }
 
+// ---------- Word (text only) ----------
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  for (const f of files) {
+    const nm = enc.encode(f.name), d = f.data, crc = crc32(d);
+    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true); lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true); lh.setUint32(18, d.length, true); lh.setUint32(22, d.length, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), nm, d);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, 0, true); ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true); ch.setUint32(20, d.length, true); ch.setUint32(24, d.length, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+    cen.push(new Uint8Array(ch.buffer), nm);
+    off += 30 + nm.length + d.length;
+  }
+  const cenLen = cen.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cenLen, true); end.setUint32(16, off, true);
+  const all = [...parts, ...cen, new Uint8Array(end.buffer)]; const out = new Uint8Array(all.reduce((a, b) => a + b.length, 0)); let o = 0; for (const b of all) { out.set(b, o); o += b.length; }
+  return out;
+}
+const xmlEsc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function exportWord() {
+  if (!pages.length) return;
+  const body = []; let pagesWithText = 0;
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    let lines = (await linesFor(p)).map((l) => ({ t: l.text, fs: l.fs, v0: l.v0, v1: l.v1, u0: l.u0 }));
+    if (!lines.length && p.ocr) lines = p.ocr.lines.map((l) => ({ t: l.t, fs: (l.y1 - l.y0) * p.h * 0.85, v0: l.y0, v1: l.y1, u0: l.x0 }));
+    lines.sort((a, b) => a.v0 - b.v0 || a.u0 - b.u0);
+    if (lines.length) pagesWithText++;
+    const sizes = lines.map((l) => l.fs).sort((a, b) => a - b), med = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 11;
+    let cur = null;
+    const flush = () => { if (!cur) return; const pt = Math.max(8, Math.min(30, Math.round(cur.fs))); const big = cur.fs > med * 1.25;
+      body.push('<w:p><w:r><w:rPr>' + (big ? '<w:b/>' : '') + '<w:sz w:val="' + pt * 2 + '"/></w:rPr><w:t xml:space="preserve">' + xmlEsc(cur.t) + '</w:t></w:r></w:p>'); cur = null; };
+    for (const l of lines) {
+      const step = l.v1 - l.v0;
+      if (cur && l.v0 - cur.v1 < step * 0.9 && Math.abs(l.fs - cur.fs) < cur.fs * 0.2) { cur.t += ' ' + l.t; cur.v1 = l.v1; }
+      else { flush(); cur = { t: l.t, fs: l.fs, v0: l.v0, v1: l.v1 }; }
+    }
+    flush();
+    if (i < pages.length - 1) body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
+  }
+  if (!pagesWithText) { toast('No text found. Run OCR first for scans and pictures.'); return; }
+  const enc = new TextEncoder();
+  const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + body.join('') + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  const ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+  const bytes = zipStore([{ name: '[Content_Types].xml', data: enc.encode(ct) }, { name: '_rels/.rels', data: enc.encode(rels) }, { name: 'word/document.xml', data: enc.encode(doc) }]);
+  const r = await window.host.saveFile({ name: (fileName || 'document').replace(/\.pdf$/i, '') + '.docx', filters: [['Word document', ['docx']]], data: bytes });
+  if (r) toast('Saved ' + r.name + ' (text only, pictures and layout are not kept)');
+}
+
 // ---------- export ----------
 const hex = (c) => { const n = parseInt(c.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
 async function rasterPage(p, list, scale = 2.5) {
@@ -979,7 +1129,7 @@ function drawMixed(page, F, text, x, y, size, color, deg = 0, opacity = 1) {
   }
 }
 const mixedWidth = (F, text, size) => (text.match(/[฀-๿]+|[^฀-๿]+/g) || []).reduce((s, r) => { const isTh = THAI.test(r) && F.thai; return s + (isTh ? F.thai : F.latin).widthOfTextAtSize(isTh ? r : winAnsi(r), size); }, 0);
-async function buildPdf(list) {
+async function buildPdf(list, enc) {
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
@@ -1009,7 +1159,17 @@ async function buildPdf(list) {
       const pt = (u, v) => dispToPdf({ ...q, w: box.width, h: box.height }, u, v, box);
       const svgPt = (u, v) => { const [x, y] = pt(u, v); return [x - box.x, box.y + box.height - y]; };
       const origin = { x: box.x, y: box.y + box.height };
-      if (a.type === 'rect' || a.type === 'highlight' || a.type === 'cover') {
+      if (isField(a)) {
+        try {
+          const form = out.getForm(); const cs = [[a.x, a.y], [a.x + a.bw, a.y + a.bh]].map(([u, v]) => pt(u, v));
+          const x = Math.min(cs[0][0], cs[1][0]), y = Math.min(cs[0][1], cs[1][1]), width = Math.abs(cs[1][0] - cs[0][0]), height = Math.abs(cs[1][1] - cs[0][1]);
+          const o = { x, y, width, height, borderWidth: 1, borderColor: rgb(0.35, 0.5, 0.85), backgroundColor: rgb(0.93, 0.96, 1) };
+          let nm = a.fname || 'Field'; const taken = new Set(form.getFields().map((f) => f.getName())); while (taken.has(nm)) nm += '_';
+          if (a.type === 'fcheck') form.createCheckBox(nm).addToPage(page, o);
+          else if (a.type === 'fdrop') { const dd = form.createDropdown(nm); dd.addOptions(a.opts && a.opts.length ? a.opts : ['Option 1']); dd.addToPage(page, o); }
+          else form.createTextField(nm).addToPage(page, { ...o, textColor: rgb(0, 0, 0) });
+        } catch (e) { console.warn('form field not saved', e); }
+      } else if (a.type === 'rect' || a.type === 'highlight' || a.type === 'cover') {
         const c = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => svgPt(u, v));
         const d = 'M' + c.map((q) => q.join(' ')).join(' L') + ' Z';
         if (a.type === 'cover') page.drawSvgPath(d, { ...origin, color: hex(a.fillc || '#ffffff'), opacity: 1, borderWidth: 0 });
@@ -1047,12 +1207,17 @@ async function buildPdf(list) {
   }
   out.setProducer('PDFout'); out.setCreator('PDFout');
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
+  if (enc && (enc.user || enc.owner || !enc.print || !enc.copy || !enc.edit)) {
+    const rnd = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+    out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,
+      permissions: { printing: enc.print ? 'highResolution' : false, copying: !!enc.copy, modifying: !!enc.edit, annotating: !!enc.edit, fillingForms: !!enc.edit, contentAccessibility: true, documentAssembly: !!enc.edit } });
+  }
   return await out.save();
 }
 async function save() {
   if (!pages.length) return;
   try {
-    const bytes = await buildPdf(pages);
+    const bytes = await buildPdf(pages, protectOpts);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
     if (r) { savedSnap = snapshot(); lastSave = r; toast('Saved ' + r.name); }

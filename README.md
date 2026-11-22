@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.19 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.20 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -22,7 +22,7 @@ PDFout (called Pageout in earlier versions) is a program for working with **PDF 
 
 It can also tidy a document. You can rotate a sideways page, delete a page you do not need, move pages up or down, add a blank page, or pull a few pages out into their own file. It can **black out** private details such as an ID number so that the text is really removed from the file, not just covered.
 
-**Not for:** PDFout does not edit the original wording of a PDF (it is not a word processor), and it does not read scanned pages out loud or turn pictures of text into text.
+**Good to know:** PDFout changes text one line at a time and does not re-flow whole paragraphs, so it is not a word processor. Text recognition (OCR) works for English and Thai pictures and scans. It does not open OFD files, and it does not read pages out loud.
 
 ## Who it is for
 
@@ -36,31 +36,17 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.19
+## What is new in 1.0.20
+
+**Password protection.** Open a locked PDF by typing its password (a wrong password just asks again). To lock a PDF, use **Protect > Password**: choose a password to open it and, if you like, forbid printing, copying or editing. The file is saved with strong 256-bit encryption made on your computer. If you forget the password nobody can recover the file, so keep it somewhere safe.
+
+**Form tab.** Draw **text fields, checkboxes and dropdowns** on any page. They are saved as real fill-in fields that work in any PDF reader. **Convert > Word (text)** saves the text of the document as a Word file (pictures and layout are not kept). PDFs that were opened with restrictions (for example "no printing") can now be edited and saved.
+
+## What was new in 1.0.19
 
 **Edit text** (Edit tab): click any line of text in a normal PDF and change it. **Text recognition (OCR)** for English and Thai, fully offline. You can now open pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form-data files as well as PDFs. New tools: Print, Export every page as images, Watermark and Page numbers. Every quick tool from the start screen is now also inside the editor, on the new **Convert** and **Tools** tabs and in the right-hand panel. Text notes now support Thai. Fixed: PDF form fields were not being detected, so the form panel never appeared.
 
 **Also fixed:** highlights, boxes, pen strokes and text notes can be dragged again with the Select tool (the drag used to stop after the first pixel). **Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
-
-## In plain words
-
-PDFout is a program for working with **PDF files** (the kind of document you get from a bank, a school, a government office or a contract). It does what you would do with a pen and a printer, but on screen: you read the document, highlight sentences, write notes in the margin, draw or sign with the mouse, and then save the result as a **new PDF** that you can email.
-
-It can also tidy a document. You can rotate a sideways page, delete a page you do not need, move pages up or down, add a blank page, or pull a few pages out into their own file. It can **black out** private details such as an ID number so that the text is really removed from the file, not just covered.
-
-**Not for:** PDFout does not edit the original wording of a PDF (it is not a word processor), and it does not read scanned pages out loud or turn pictures of text into text.
-
-## Who it is for
-
-- **Students and teachers** who highlight and take notes on papers and worksheets.
-- **Anyone who signs documents**: draw your signature once, place it on a form, save the signed copy.
-- **Office workers** who need to remove a page, rotate a scan or hide a phone number before sending a PDF to someone.
-
-## Try it in 3 steps
-
-1. Click **Open**, choose any PDF, and scroll through it. Use the page list on the left to jump around.
-2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
-3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
 ## Edit the text that is already in a PDF
 
@@ -118,6 +104,16 @@ A scan or a photo of a page is just a picture, so you cannot select, search or c
 - **Watermark** stamps text such as CONFIDENTIAL across every page, or only the current one. Choose size, strength, colour and direction. *Remove watermarks* takes them off again.
 - **Page numbers** adds numbers in the format, position and size you choose (for example *Page 3 of 12*). *Remove numbers* takes them off.
 
+## Form fields and passwords
+
+**Make a fill-in form.** Open the **Form** tab, pick **Text field**, **Checkbox** or **Dropdown** and drag a rectangle on the page. Give the field a name (and the choices, for a dropdown). When you save, the fields are real form fields that anyone can click and fill in with any PDF reader.
+
+![Drawing form fields](screenshots/13-form-fields.png)
+
+**Lock a PDF.** Open **Protect > Password**, type a password, choose what people may do (print, copy, edit) and save. Opening a locked file asks for its password first. Everything happens on your computer.
+
+![Password dialog](screenshots/14-password-dialog.png)
+
 ## See it in action
 
 ### The home screen
@@ -158,7 +154,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 ## The interface
 
-- **Tabs and ribbon (top):** eight tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Edit** (edit text, add text, cover), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign, watermark), **Convert** (OCR, extract text, export page or all pages as pictures, create a PDF from pictures), **Tools** (combine, compress, watermark, page numbers, form data, print) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
+- **Tabs and ribbon (top):** nine tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Edit** (edit text, add text, cover), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Form** (text field, checkbox, dropdown), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign, watermark, password), **Convert** (OCR, extract text, Word file of the text, export page or all pages as pictures, create a PDF from pictures), **Tools** (combine, compress, watermark, page numbers, form data, print) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
 - **Left panel:** page buttons (rotate, delete, copy, move, blank, extract) above live thumbnails of every page.
 - **Right panel:** document title and author, ink colour and line width, export tools, and search results.
 
@@ -224,7 +220,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 ## Files and formats
 
-Opens PDF files. Saves PDF. Exports a page as PNG and the document text as plain text.
+Opens PDF files (including ones locked with a password, if you know it), pictures (PNG, JPG, WebP, BMP, GIF) and FDF / XFDF form data. Saves PDF, with an optional password. Exports pages as PNG, the document text as plain text and as a Word (.docx) file. OFD files are not supported.
 
 ## Private by design
 

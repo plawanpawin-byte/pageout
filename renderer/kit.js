@@ -98,7 +98,7 @@
     'Add task': 'plus', 'Add milestone': 'diamond', 'Move up': 'up', 'Move down': 'down', 'Up': 'up', 'Down': 'down',
     'Import media': 'plus', 'Add files': 'plus', 'Output folder': 'folder', 'Convert all': 'convert', 'Clear finished': 'clear', 'Show': 'folder', 'Show in folder': 'folder',
     'Check file': 'check', 'Repair to new file': 'download', 'Refresh sources': 'refresh', 'Start recording': 'rec', 'Stop and review': 'stop', 'New recording': 'rec',
-    'Check for updates': 'refresh', 'Info': 'info', 'Merge': 'merge', 'Home': 'home', 'Edit text': 'edit', 'OCR': 'ocr', 'Print': 'print', 'Watermark': 'drop', 'Page numbers': 'pagenum', 'Form data': 'forms', 'From images': 'pics', 'Export images': 'download', 'Compress': 'squeeze', 'Combine': 'merge', 'Rotate L': 'rotl', 'Rotate R': 'rotr', 'Blank': 'blank', 'Extract': 'extract',
+    'Check for updates': 'refresh', 'Info': 'info', 'Merge': 'merge', 'Home': 'home', 'Edit text': 'edit', 'OCR': 'ocr', 'Print': 'print', 'Watermark': 'drop', 'Password': 'lock', 'Word (text)': 'convert', 'Save as Word (text)': 'convert', 'Text field': 'text', 'Checkbox': 'check', 'Dropdown': 'list', 'Page numbers': 'pagenum', 'Form data': 'forms', 'From images': 'pics', 'Export images': 'download', 'Compress': 'squeeze', 'Combine': 'merge', 'Rotate L': 'rotl', 'Rotate R': 'rotr', 'Blank': 'blank', 'Extract': 'extract',
     'Front': 'front', 'Back': 'back', 'Close gaps': 'gaps', 'Title text': 'title', 'Dashed': 'dashed', 'Arrow on/off': 'arrow', 'Straight / Elbow': 'elbow', 'Edit label': 'label',
     'Cut': 'scissors', 'Trim to selection': 'fit', 'Locate missing files': 'search',
     'Templates': 'templ', 'Cover': 'blank', 'Present': 'play', 'Set baseline': 'flag', 'Clear baseline': 'clear', 'Resources': 'people',

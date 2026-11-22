@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.15 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.16 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -36,9 +36,9 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.15
+## What is new in 1.0.16
 
-**Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
+**Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
 
 ## In plain words
 
@@ -100,7 +100,7 @@ The current page exported as a sharp PNG image, ready to drop into a slide, a me
 
 ## The interface
 
-- **Top bar:** open, merge and save files, the markup tools (Select, Highlight, Text, Box, Pen, Redact, Sign, Erase), undo and redo, zoom, and text search.
+- **Tabs and ribbon (top):** six tabs, like PDFelement but in our own look. **Home** (open, merge, save, select, highlight, text, zoom), **Comment** (highlight, text, box, pen, eraser, signature and ink colours), **Organise** (rotate, delete, copy, move, blank page, extract), **Protect** (redact, cover, sign), **Tools** (export page as PNG, extract text, compress, merge) and **View** (fit and zoom). Click the active tab again to fold the ribbon away. The Home button on the left returns to the start screen.
 - **Left panel:** page buttons (rotate, delete, copy, move, blank, extract) above live thumbnails of every page.
 - **Right panel:** document title and author, ink colour and line width, export tools, and search results.
 

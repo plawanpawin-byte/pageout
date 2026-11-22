@@ -48,15 +48,13 @@ const left = h('div', { class: 'sidebar' });
 const stage = h('div', { class: 'stage' });
 const right = h('div', { class: 'sidebar right' });
 const status = h('div', { class: 'status' });
-app.append(toolbar, h('div', { class: 'main' }, left, h('div', { style: 'flex:1;min-width:0;display:flex' }, stage), right), status);
+const ribbon = h('div', { class: 'ribbon' });
+const head = h('div', { class: 'head' }, toolbar, ribbon);
+app.append(head, h('div', { class: 'main' }, left, h('div', { style: 'flex:1;min-width:0;display:flex' }, stage), right), status);
 stage.style.flex = '1';
 stage.style.overflow = 'auto';
 
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
-const toolBtns = {};
-const bOpen = btn('Open', () => openFiles(false), 'primary');
-const bMerge = btn('Merge', () => openFiles(true));
-const bSave = btn('Save as', () => save());
 const bHome = btn('Home', () => {
   if (pages.length && snapshot() !== savedSnap && !confirm('Close this document without saving?')) return;
   pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; fullRender();
@@ -66,14 +64,39 @@ const bRedo = btn('Redo', () => redo());
 const search = h('input', { 'aria-label': 'Search text', type: 'search', placeholder: 'Search text', style: 'width:150px', onkeydown: (e) => { if (e.key === 'Enter') doSearch(search.value); } });
 const swatchBox = h('div', { class: 'swatches' }, SWATCH.map((c) => { const b = h('button', { style: `background:${c}`, title: c, onclick: () => { color = c; refreshSwatches(); if (selAnn) mutateSel((a) => { a.color = c; }); } }); b.dataset.c = c; return b; }));
 const sizeIn = h('input', { type: 'range', min: 1, max: 14, value: strokeW, title: 'Line width', style: 'width:100%', oninput: () => { strokeW = +sizeIn.value; if (selAnn) mutateSel((a) => { if (a.type === 'rect' || a.type === 'draw') a.w = strokeW; }); } });
-toolbar.append(bHome, bOpen, bMerge, bSave, h('span', { class: 'sep' }), ...TOOLS.map(([k, n]) => (toolBtns[k] = btn(n, () => setTool(k)))), h('span', { class: 'sep' }), bUndo, bRedo, h('span', { class: 'sep' }),
-  btn('-', () => setZoom(zoom / 1.15), 'icon'), btn('+', () => setZoom(zoom * 1.15), 'icon'), btn('Fit', () => fitWidth()), h('span', { class: 'grow' }), search);
+const TABS = [['home', 'Home'], ['comment', 'Comment'], ['organise', 'Organise'], ['protect', 'Protect'], ['tools', 'Tools'], ['view', 'View']];
+let ribbonTab = 'home', ribbonOpen = true;
+const tabEls = {};
+const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
+  onclick: () => { if (ribbonTab === k) ribbonOpen = !ribbonOpen; else { ribbonTab = k; ribbonOpen = true; } drawRibbon(); } }))));
+toolbar.append(bHome, h('span', { class: 'sep' }), tabBar, h('span', { class: 'grow' }), bUndo, bRedo, h('span', { class: 'sep' }), search);
+const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true; return b; };
+const rg = (...kids) => h('div', { class: 'rgroup' }, ...kids);
+function drawRibbon() {
+  const none = !pages.length;
+  for (const [k, b] of Object.entries(tabEls)) { b.classList.toggle('on', k === ribbonTab && ribbonOpen); b.setAttribute('aria-selected', String(k === ribbonTab)); }
+  ribbon.classList.toggle('closed', !ribbonOpen);
+  ribbon.textContent = '';
+  if (!ribbonOpen) return;
+  const T = (k, n) => rb(n, () => setTool(k), { on: tool === k, dis: none });
+  const sw = h('div', { class: 'rgroup rsw' }, swatchBox, h('div', { class: 'rw' }, h('span', { text: 'Line' }), sizeIn));
+  const groups = {
+    home: [rg(rb('Open', () => openFiles(false)), rb('Merge', () => openFiles(true), { dis: none, tip: 'Combine another PDF into this one' }), rb('Save as', () => save(), { dis: none })),
+      rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text')), rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }))],
+    comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text'), T('rect', 'Box'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
+    organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none }))],
+    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }))],
+    tools: [rg(rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Extract all text', () => extractText(), { dis: none }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save compressed copy' }), rb('Merge', () => openFiles(true), { dis: none, tip: 'Combine another PDF into this one' }))],
+    view: [rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }))],
+  };
+  ribbon.append(...groups[ribbonTab].flatMap((g, i) => (i ? [h('span', { class: 'rsep' }), g] : [g])));
+}
 function refreshSwatches() { swatchBox.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === color)); }
 refreshSwatches();
 function setTool(t) {
   if (t === 'sign') { openSignature(); return; }
   tool = t;
-  for (const [k, b] of Object.entries(toolBtns)) b.classList.toggle('on', k === t);
+  drawRibbon();
   stage.className = 'stage tool-' + t;
   if (t !== 'select') { selAnn = null; redrawOverlays(); }
 }
@@ -178,7 +201,7 @@ function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoS
 function restore(s) { pages = JSON.parse(s); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
 function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); }
-function updateButtons() { bUndo.disabled = !undoStack.length; bRedo.disabled = !redoStack.length; bSave.disabled = !pages.length; bMerge.disabled = !pages.length; }
+function updateButtons() { bUndo.disabled = !undoStack.length; bRedo.disabled = !redoStack.length; drawRibbon(); }
 
 // ---------- geometry ----------
 const dispDims = (p) => { const sw = p.r0 % 180 !== 0; return sw ? [p.h, p.w] : [p.w, p.h]; };      // base display (user rot 0), in points

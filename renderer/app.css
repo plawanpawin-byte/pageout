@@ -56,3 +56,23 @@ table.recent td{height:48px}
 .home-empty{display:flex;flex-direction:column;gap:4px;padding:30px;border:1px dashed var(--line-2);border-radius:16px;text-align:center;color:var(--text-2)}
 .home-empty b{color:var(--text);font-weight:500}
 table.recent th:first-child,table.recent td:first-child{width:44px;padding:0 6px}
+
+/* ribbon */
+.head{display:flex;flex-direction:column;background:var(--bg)}
+.head .toolbar{border-bottom:0;min-height:40px;padding-bottom:0}
+.tabs{display:flex;gap:2px;margin-left:4px}
+.tab{height:32px;padding:0 14px;border:0;background:transparent;color:var(--text-2);border-radius:999px;cursor:pointer;font-size:13px}
+.tab:hover{background:var(--bg-3)}
+.tab.on{background:var(--accent-soft);color:var(--accent)}
+.ribbon{display:flex;align-items:center;gap:4px;padding:4px 12px 6px;min-height:58px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.ribbon::-webkit-scrollbar{height:0}
+.ribbon.closed{display:none}
+.rgroup{display:flex;align-items:center;gap:2px}
+.rsep{width:1px;height:34px;background:var(--line-2);margin:0 8px;flex-shrink:0}
+.ribbon .btn.rb{flex-direction:column;gap:4px;height:48px;min-width:54px;padding:5px 8px;border-radius:12px;background:transparent;font-size:11px;color:var(--text-2);flex-shrink:0}
+.ribbon .btn.rb .ic{width:18px;height:18px;opacity:1;color:var(--text)}
+.ribbon .btn.rb:hover{background:var(--bg-3)}
+.ribbon .btn.rb.on{background:var(--accent-soft);color:var(--accent)}
+.ribbon .btn.rb.on .ic{color:var(--accent)}
+.ribbon .rsw{gap:14px;margin-left:6px}
+.rw{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-2);width:110px}

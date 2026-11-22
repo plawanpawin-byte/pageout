@@ -64,6 +64,16 @@
     merge: 'M6 3v6a6 6 0 006 6h6M15 12l3 3-3 3M6 21v-4',
     rotl: 'M4 10a8 8 0 112 6M4 4v6h6',
     rotr: 'M20 10a8 8 0 10-2 6M20 4v6h-6',
+    crop: 'M6 2v16h16M2 6h16v16',
+    compare: 'M4 4h7v16H4zM13 4h7v16h-7zM7 9h1M16 9h1',
+    bookmark: 'M6 3h12v18l-6-4-6 4z',
+    cert: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6zM9 12l2 2 4-4',
+    stamp: 'M8 11h8l-1-5a3 3 0 00-6 0zM5 15h14v3H5zM4 21h16',
+    split: 'M12 3v18M8 7L4 12l4 5M16 7l4 5-4 5',
+    batch: 'M5 5h10v10H5zM9 9h10v10H9z',
+    dark: 'M20 14A8 8 0 019.5 4 8 8 0 1020 14z',
+    speaker: 'M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 010 6',
+    keys: 'M3 8h18v10H3zM7 12h.01M11 12h.01M15 12h.01M8 15h8',
     blank: 'M6 3h12v18H6z',
     extract: 'M14 3H6v18h12V7zM14 3v4h4M12 10v7M9 14l3 3 3-3',
     mic: 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3zM6 11a6 6 0 0012 0M12 17v4',
@@ -101,6 +111,11 @@
     'Check for updates': 'refresh', 'Info': 'info', 'Merge': 'merge', 'Home': 'home', 'Edit text': 'edit', 'OCR': 'ocr', 'Print': 'print', 'Watermark': 'drop', 'Password': 'lock', 'Word (text)': 'convert', 'Save as Word (text)': 'convert', 'Text field': 'text', 'Checkbox': 'check', 'Dropdown': 'list', 'Page numbers': 'pagenum', 'Form data': 'forms', 'From images': 'pics', 'Export images': 'download', 'Compress': 'squeeze', 'Combine': 'merge', 'Rotate L': 'rotl', 'Rotate R': 'rotr', 'Blank': 'blank', 'Extract': 'extract',
     'Front': 'front', 'Back': 'back', 'Close gaps': 'gaps', 'Title text': 'title', 'Dashed': 'dashed', 'Arrow on/off': 'arrow', 'Straight / Elbow': 'elbow', 'Edit label': 'label',
     'Cut': 'scissors', 'Trim to selection': 'fit', 'Locate missing files': 'search',
+    'Replace text': 'edit', 'Marks': 'check', 'Image': 'pics', 'Link': 'connector', 'Stamp': 'stamp', 'Header and footer': 'title', 'Underline': 'line', 'Strikeout': 'line', 'Ellipse': 'ellipse', 'Line': 'line', 'Arrow': 'arrow',
+    'Crop': 'crop', 'Page size': 'frame', 'Insert pages': 'plus', 'Split': 'split', 'Reverse': 'refresh', 'Odd pages': 'list', 'Even pages': 'list', 'Blank pages': 'blank',
+    'Digital signature': 'cert', 'Check signatures': 'cert', 'Redact words': 'redact', 'Redact patterns': 'redact', 'Clean metadata': 'clear', 'Flatten': 'squeeze',
+    'Word': 'convert', 'Markdown': 'text', 'Web page': 'vector', 'Tables to CSV': 'table', 'Embedded pictures': 'pics', 'PDF/A': 'file', 'Grey copy': 'eye', 'Clean scan': 'clear',
+    'Compare': 'compare', 'Find in files': 'search', 'Bookmarks': 'bookmark', 'Properties': 'info', 'Batch': 'batch', 'Fit page': 'fit', 'Dark pages': 'dark', 'Full screen': 'fit', 'Read aloud': 'speaker', 'Shortcuts': 'keys', 'Pages': 'file',
     'Templates': 'templ', 'Cover': 'blank', 'Present': 'play', 'Set baseline': 'flag', 'Clear baseline': 'clear', 'Resources': 'people',
   };
   const LMAP = { 'Hide': 'eye', 'Show': 'eyeoff', 'Lock': 'unlock', 'Unlock': 'lock' };
@@ -114,14 +129,14 @@
   }
   function decorate(b) {
     if (b.tagName !== 'BUTTON' || !b.classList.contains('btn')) return;
-    const label = (b.textContent || '').trim();
+    const label = ((b.dataset && b.dataset.k) || b.textContent || '').trim();
     const name = (b.closest('.list') && LMAP[label]) || MAP[label];
     const cur = b.querySelector(':scope > svg.ic');
     if (cur && cur.dataset.for === label) return;
     if (cur) cur.remove();
     if (!name) return;
     const s = icon(name); s.dataset.for = label; b.prepend(s);
-    if (!b.title) b.title = label;
+    if (!b.title) b.title = (b.textContent || '').trim() || label;
   }
   function brand(bar) {
     if (!bar || bar.querySelector(':scope > .brand') || (document.title && (bar.textContent || '').includes(document.title))) return;
@@ -136,7 +151,7 @@
   const MINOR = new Set(['New', 'Open', 'Undo', 'Redo', 'Copy', 'Paste', 'Duplicate', 'Delete', 'Front', 'Back', 'Fit', 'Hand', 'Merge', 'Move up', 'Move down', 'Today', 'Cut', 'Dashed', 'Arrow on/off', 'Straight / Elbow', 'Edit label', 'Output folder', 'Remove selected', 'Clear finished', 'Refresh sources', 'Stop', 'Collapse', 'Expand all', 'Select', 'Move']);
   function fitBar(bar) {
     bar.classList.remove('c1', 'c2', 'c3');
-    bar.querySelectorAll(':scope > .btn').forEach((b) => b.classList.toggle('minor', MINOR.has((b.textContent || '').trim())));
+    bar.querySelectorAll(':scope > .btn').forEach((b) => b.classList.toggle('minor', MINOR.has(((b.dataset && b.dataset.k) || b.textContent || '').trim())));
     for (const c of ['c1', 'c2', 'c3']) { if (bar.scrollWidth <= bar.clientWidth + 1) break; bar.classList.add(c); }
   }
   // ---- workspace: resizable and collapsible side panels, label toggle, remembered per app ----

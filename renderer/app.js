@@ -1,5 +1,7 @@
 import * as pdfjs from './vendor/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
+import { tr, getLang, setLang } from './i18n.js';
+import { initExtra } from './extra.js';
 const { PDFDocument, rgb, degrees, StandardFonts } = window.PDFLib;
 
 // ---------- helpers ----------
@@ -8,18 +10,18 @@ const h = (tag, props = {}, ...kids) => {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (k === 'class') e.className = v;
-    else if (k === 'text') e.textContent = v;
+    else if (k === 'text') { const t = tr(String(v)); e.textContent = t; if (t !== String(v)) e.dataset.k = v; }
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : (k === 'title' || k === 'placeholder' || k === 'aria-label') ? tr(String(v)) : v);
   }
-  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(typeof c === 'string' ? tr(c) : c));
   return e;
 };
 const svgNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs = {}) => { const e = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const uid = () => Math.random().toString(36).slice(2, 10);
-const toast = (msg) => { const t = h('div', { class: 'toast', text: msg }); document.body.append(t); setTimeout(() => t.remove(), 2600); };
+const toast = (msg) => { const t = h('div', { class: 'toast', text: String(msg) }); document.body.append(t); setTimeout(() => t.remove(), 2600); };
 
 // ---------- state ----------
 const sources = new Map();          // id -> {name, bytes, pdf}
@@ -38,6 +40,8 @@ let lastSave = null;                // {id,name}
 let meta = { title: '', author: '' };
 let protectOpts = null;             // {user, owner, print, copy, edit} applied when saving
 let hits = [];
+let outline = [];                   // bookmarks: {id, title, pid, level}
+const X = {};                       // features from extra.js, filled in by initExtra()
 
 const TOOLS = [['select', 'Select'], ['highlight', 'Highlight'], ['text', 'Text'], ['rect', 'Box'], ['draw', 'Pen'], ['redact', 'Redact'], ['cover', 'Cover'], ['sign', 'Sign'], ['erase', 'Erase']];
 const SWATCH = ['#e6c84a', '#d98a5f', '#d96c6c', '#6c9ad9', '#74b27c', '#111111', '#ffffff'];
@@ -57,8 +61,8 @@ stage.style.overflow = 'auto';
 
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
 const bHome = btn('Home', () => {
-  if (pages.length && snapshot() !== savedSnap && !confirm('Close this document without saving?')) return;
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; fullRender();
+  if (pages.length && snapshot() !== savedSnap && !confirm(tr('Close this document without saving?'))) return;
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; leftMode = 'pages'; fullRender();
 });
 const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
@@ -70,7 +74,18 @@ let ribbonTab = 'home', ribbonOpen = true;
 const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
   onclick: () => { if (ribbonTab === k) ribbonOpen = !ribbonOpen; else { ribbonTab = k; ribbonOpen = true; } drawRibbon(); } }))));
-toolbar.append(bHome, h('span', { class: 'sep' }), tabBar, h('span', { class: 'grow' }), bUndo, bRedo, h('span', { class: 'sep' }), search);
+const bLang = h('button', { class: 'btn minor', title: 'Language', onclick: () => { setLang(getLang() === 'th' ? 'en' : 'th'); retranslate(); } });
+const langLabel = () => { bLang.textContent = getLang() === 'th' ? 'EN' : 'ไทย'; bLang.dataset.k = 'Language'; };
+langLabel();
+toolbar.append(bHome, h('span', { class: 'sep' }), tabBar, h('span', { class: 'grow' }), bUndo, bRedo, h('span', { class: 'sep' }), search, bLang);
+function retranslate() {
+  const set = (el, key) => { if (!el) return; el.dataset.k = key; el.textContent = tr(key); };
+  set(bHome, 'Home'); set(bUndo, 'Undo'); set(bRedo, 'Redo');
+  TABS.forEach(([k, n]) => set(tabEls[k], n));
+  search.placeholder = tr('Search text'); search.setAttribute('aria-label', tr('Search text'));
+  document.documentElement.lang = getLang();
+  langLabel(); drawRibbon(); fullRender();
+}
 const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true; return b; };
 const rg = (...kids) => h('div', { class: 'rgroup' }, ...kids);
 function drawRibbon() {
@@ -82,17 +97,26 @@ function drawRibbon() {
   const T = (k, n) => rb(n, () => setTool(k), { on: tool === k, dis: none });
   const sw = h('div', { class: 'rgroup rsw' }, swatchBox, h('div', { class: 'rw' }, h('span', { text: 'Line' }), sizeIn));
   const zoomG = rg(rb('Fit', () => fitWidth(), { dis: none, tip: 'Fit to width' }), rb('-', () => setZoom(zoom / 1.15), { dis: none, tip: 'Zoom out' }), rb('+', () => setZoom(zoom * 1.15), { dis: none, tip: 'Zoom in' }));
+  const doc = (n, k, o = {}) => rb(n, () => X[k] && X[k](), { dis: none, ...o });
   const groups = {
     home: [rg(rb('Open', () => openFiles(false)), rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Save as', () => save(), { dis: none }), rb('Print', () => printDoc(), { dis: none })),
       rg(T('select', 'Select'), T('edittext', 'Edit text'), T('highlight', 'Highlight'), T('text', 'Text')), zoomG],
-    edit: [rg(T('edittext', 'Edit text'), T('text', 'Text'), T('cover', 'Cover'), T('select', 'Select'), T('erase', 'Erase')), rg(rb('OCR', () => openOcr(), { dis: none, tip: 'First turn a scan or picture into text' }))],
-    comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('text', 'Text'), T('rect', 'Box'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
+    edit: [rg(T('edittext', 'Edit text'), T('text', 'Text'), T('cover', 'Cover'), T('select', 'Select'), T('erase', 'Erase')),
+      rg(rb('OCR', () => openOcr(), { dis: none, tip: 'First turn a scan or picture into text' }), doc('Replace text', 'replaceText', { tip: 'Find a word and change it everywhere' })),
+      rg(doc('Image', 'insertImage', { tip: 'Place a picture on the page' }), doc('Marks', 'quickMarks', { tip: 'Tick, cross, dot and the date' }), T('link', 'Link'), doc('Stamp', 'stamp', { tip: 'Approved, Draft, Paid and more' }), doc('Header and footer', 'headerFooter', { tip: 'Text and numbers at the top or bottom of every page' }), rb('Page numbers', () => openPageNumbers(), { dis: none }))],
+    comment: [rg(T('select', 'Select'), T('highlight', 'Highlight'), T('underline', 'Underline'), T('strike', 'Strikeout'), T('text', 'Text'), T('rect', 'Box'), T('ellipse', 'Ellipse'), T('line', 'Line'), T('arrow', 'Arrow'), T('draw', 'Pen'), T('erase', 'Erase'), rb('Sign', () => setTool('sign'), { dis: none })), sw],
     form: [rg(T('ftext', 'Text field'), T('fcheck', 'Checkbox'), T('fdrop', 'Dropdown'), T('select', 'Select'), T('erase', 'Erase')), rg(rb('Form data', () => openFormData(), { dis: none, tip: 'Fill the form from an FDF or XFDF file' }))],
-    organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none }))],
-    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Password', () => openProtect(), { dis: none, tip: 'Lock the saved PDF with a password' }))],
-    convert: [rg(rb('OCR', () => openOcr(), { dis: none, tip: 'Recognise text in scans and pictures' }), rb('Extract all text', () => extractText(), { dis: none }), rb('Word (text)', () => exportWord(), { dis: none, tip: 'Save the text as a Word file. Pictures and layout are not kept.' }), rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Export images', () => exportImages(), { dis: none, tip: 'Save every page as a PNG picture' }), rb('From images', () => createFromImages(), { tip: 'Create a PDF from pictures' }))],
-    tools: [rg(rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save a smaller copy' }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Page numbers', () => openPageNumbers(), { dis: none }), rb('Form data', () => openFormData(), { dis: none, tip: 'Fill form fields from an FDF or XFDF file' }), rb('Print', () => printDoc(), { dis: none }))],
-    view: [zoomG],
+    organise: [rg(...[['Rotate L', 'rotL'], ['Rotate R', 'rotR'], ['Delete', 'del'], ['Copy', 'dup'], ['Up', 'up'], ['Down', 'down'], ['Blank', 'blank']].map(([n, op]) => rb(n, () => pageOp(op), { dis: none, tip: n + ' (selected pages)' })), rb('Extract', () => extractSel(), { dis: none })),
+      rg(doc('Crop', 'crop', { tip: 'Trim the margins of pages' }), doc('Page size', 'pageSize', { tip: 'Change the paper size' }), doc('Insert pages', 'insertPages', { tip: 'Add pages from another PDF or picture' }), doc('Split', 'split', { tip: 'Cut the document into several files' })),
+      rg(doc('Reverse', 'reverse'), doc('Odd pages', 'selOdd'), doc('Even pages', 'selEven'), doc('Blank pages', 'findBlank', { tip: 'Find and remove empty pages' }))],
+    protect: [rg(T('redact', 'Redact'), T('cover', 'Cover'), rb('Sign', () => setTool('sign'), { dis: none }), doc('Digital signature', 'certSign', { tip: 'Sign with a certificate so anyone can verify it' }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Password', () => openProtect(), { dis: none, tip: 'Lock the saved PDF with a password' })),
+      rg(doc('Redact words', 'redactWords', { tip: 'Find words and black them out everywhere' }), doc('Redact patterns', 'redactPatterns', { tip: 'Phone numbers, emails, ID numbers, cards' }), doc('Check signatures', 'verifySigs', { tip: 'See who signed this file and whether it was changed' }), doc('Clean metadata', 'sanitize', { tip: 'Remove hidden author, dates and notes' }), doc('Flatten', 'flatten', { tip: 'Turn form fields and notes into plain page content' }))],
+    convert: [rg(rb('OCR', () => openOcr(), { dis: none, tip: 'Recognise text in scans and pictures' }), rb('Extract all text', () => extractText(), { dis: none }), doc('Word', 'exportWord', { tip: 'Save as a Word file with text, tables and pictures' }), doc('Markdown', 'exportMarkdown'), doc('Web page', 'exportHtml', { tip: 'Save as an HTML page' }), doc('Tables to CSV', 'exportCsv', { tip: 'Save the tables on the pages as a spreadsheet file' })),
+      rg(rb('Export page as PNG', () => exportPng(), { dis: none }), rb('Export images', () => exportImages(), { dis: none, tip: 'Save every page as a PNG picture' }), doc('Embedded pictures', 'extractPictures', { tip: 'Save the pictures that are inside the PDF' }), rb('From images', () => createFromImages(), { tip: 'Create a PDF from pictures' })),
+      rg(doc('PDF/A', 'pdfa', { tip: 'Archive copy for long term keeping' }), doc('Grey copy', 'grayscale', { tip: 'Save a black and white copy that prints cheaply' }), doc('Clean scan', 'cleanScan', { tip: 'Whiten the paper and sharpen the text of scans' }))],
+    tools: [rg(rb('Combine', () => openFiles(true), { dis: none, tip: 'Add another PDF or image to this one' }), rb('Compress', () => saveCompressed(), { dis: none, tip: 'Save a smaller copy' }), rb('Watermark', () => openWatermark(), { dis: none }), rb('Page numbers', () => openPageNumbers(), { dis: none }), rb('Form data', () => openFormData(), { dis: none, tip: 'Fill form fields from an FDF or XFDF file' }), rb('Print', () => printDoc(), { dis: none })),
+      rg(doc('Compare', 'compare', { tip: 'Show what changed between two PDFs' }), rb('Find in files', () => X.searchFiles && X.searchFiles(), { tip: 'Search many PDFs at once' }), doc('Bookmarks', 'bookmarks', { tip: 'Edit the bookmarks and contents' }), doc('Properties', 'properties', { tip: 'Title, author, subject and keywords' }), rb('Batch', () => X.batch && X.batch(), { tip: 'Do one job on many PDFs' }))],
+    view: [zoomG, rg(rb('Fit page', () => X.fitPage && X.fitPage(), { dis: none }), rb('Dark pages', () => X.darkPages && X.darkPages(), { dis: none, on: X.isDark && X.isDark(), tip: 'Invert page colours for night reading' }), rb('Full screen', () => X.fullscreen && X.fullscreen(), { dis: none }), rb('Read aloud', () => X.readAloud && X.readAloud(), { dis: none, tip: 'Hear the page read out by this computer' }), rb('Shortcuts', () => X.shortcuts && X.shortcuts()))],
   };
   ribbon.append(...groups[ribbonTab].flatMap((g, i) => (i ? [h('span', { class: 'rsep' }), g] : [g])));
 }
@@ -117,7 +141,7 @@ const IC = (d) => { const s = sv('svg', { viewBox: '0 0 24 24', width: 22, heigh
 async function openThen(fn) { await openFiles(false); if (pages.length && fn) setTimeout(fn, 60); }
 async function createBlank() {
   const d = await PDFDocument.create(); d.addPage([595.28, 841.89]);
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null;
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = [];
   const sid = await addSource('Untitled.pdf', new Uint8Array(await d.save()));
   pages.push(...await pagesOf(sid)); sel.clear(); curPage = 0; selAnn = null; meta = { title: '', author: '' };
   setTimeout(() => { savedSnap = snapshot(); }, 0); fullRender();
@@ -139,6 +163,16 @@ const QUICK = [
   ['Page numbers', 'Number every page.', '<path d="M6 4h12v16H6z"/><path d="M10 15h4"/>', () => openThen(() => openPageNumbers())],
   ['Print', 'Send the document to a printer.', '<path d="M7 8V3h10v5M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>', () => openThen(() => printDoc())],
   ['Fill form', 'Open a PDF form, or load FDF / XFDF data.', '<path d="M5 4h14v16H5zM8 9h8M8 13h8M8 17h4"/>', () => openThen(() => openFormData())],
+  ['Crop pages', 'Trim the margins of every page.', '<path d="M6 2v16h16M2 6h16v16"/>', () => openThen(() => X.crop && X.crop())],
+  ['Split', 'Cut a PDF into several files.', '<path d="M12 3v18M8 7L4 12l4 5M16 7l4 5-4 5"/>', () => openThen(() => X.split && X.split())],
+  ['Compare', 'See what changed between two PDFs.', '<path d="M4 4h7v16H4zM13 4h7v16h-7z"/>', () => openThen(() => X.compare && X.compare())],
+  ['Find in files', 'Search many PDFs at once.', '<circle cx="10" cy="10" r="6"/><path d="M15 15l6 6"/>', () => X.searchFiles && X.searchFiles()],
+  ['Bookmarks', 'Add a contents list to a long PDF.', '<path d="M6 3h12v18l-6-4-6 4z"/>', () => openThen(() => X.bookmarks && X.bookmarks())],
+  ['Digital signature', 'Sign with a certificate that can be checked.', '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/>', () => openThen(() => X.certSign && X.certSign())],
+  ['Redact words', 'Find words and black them out everywhere.', '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M7 10h6M7 14h10" stroke-width="3"/>', () => openThen(() => X.redactWords && X.redactWords())],
+  ['PDF/A archive', 'A copy made for long term keeping.', '<path d="M6 3h8l4 4v14H6z"/><path d="M9 14l2 2 4-4"/>', () => openThen(() => X.pdfa && X.pdfa())],
+  ['Save as Word', 'Text, tables and pictures in a .docx file.', '<path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/>', () => openThen(() => X.exportWord && X.exportWord())],
+  ['Batch', 'Do one job on many PDFs.', '<rect x="5" y="5" width="10" height="10"/><rect x="9" y="9" width="10" height="10"/>', () => X.batch && X.batch()],
   ['Blank PDF', 'Start from an empty page.', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M12 11v6M9 14h6"/>', () => createBlank()],
 ];
 const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
@@ -289,7 +323,7 @@ async function loadFiles(files, merge) {
     let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data)));
     toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); return;
   }
-  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = docs[0].name.replace(IMG_RE, '.pdf'); lastSave = null; }
+  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = docs[0].name.replace(IMG_RE, '.pdf'); lastSave = null; outline = []; }
   for (const f of docs) {
     try {
       let bytes = toBytes(f.data);
@@ -298,7 +332,7 @@ async function loadFiles(files, merge) {
       pages.push(...await pagesOf(sid));
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
-  if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '' }; } catch { meta = { title: '', author: '' }; } }
+  if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
   sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = snapshot(); }, 0);
   for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
   fullRender();
@@ -381,9 +415,12 @@ async function renderPage(el, p) {
   markHits(tl, p);
   el.append(makeOverlay(p));
 }
+let leftMode = 'pages';
 function renderThumbs() {
   left.textContent = '';
   thumbEls.clear();
+  left.append(h('div', { class: 'ptools modes' }, h('button', { class: 'btn' + (leftMode === 'pages' ? ' on' : ''), text: 'Pages', onclick: () => { leftMode = 'pages'; renderThumbs(); } }), h('button', { class: 'btn' + (leftMode === 'marks' ? ' on' : ''), text: 'Bookmarks', onclick: () => { leftMode = 'marks'; renderThumbs(); } })));
+  if (leftMode === 'marks' && X.marksPanel) { X.marksPanel(left); return; }
   const tools = h('div', { class: 'ptools' },
     btn('Rotate L', () => pageOp('rotL')), btn('Rotate R', () => pageOp('rotR')), btn('Delete', () => pageOp('del')), btn('Copy', () => pageOp('dup')),
     btn('Up', () => pageOp('up')), btn('Down', () => pageOp('down')), btn('Blank', () => pageOp('blank')), btn('Extract', () => extractSel()));
@@ -391,6 +428,11 @@ function renderThumbs() {
   pages.forEach((p, i) => {
     const c = h('canvas');
     const t = h('div', { class: 'thumb' + (sel.has(p.id) ? ' sel' : ''), onclick: (e) => thumbClick(e, p, i) }, c, h('span', { text: String(i + 1) }));
+    t.draggable = true;
+    t.addEventListener('dragstart', (e) => { const ids = sel.has(p.id) ? pages.filter((x) => sel.has(x.id)).map((x) => x.id) : [p.id]; e.dataTransfer.setData('text/x-pdfout-pages', JSON.stringify(ids)); e.dataTransfer.effectAllowed = 'move'; });
+    t.addEventListener('dragover', (e) => { if (![...e.dataTransfer.types].includes('text/x-pdfout-pages')) return; e.preventDefault(); const r = t.getBoundingClientRect(), after = e.clientY >= r.top + r.height / 2; t.classList.toggle('dropafter', after); t.classList.toggle('dropbefore', !after); });
+    t.addEventListener('dragleave', () => t.classList.remove('dropbefore', 'dropafter'));
+    t.addEventListener('drop', (e) => { const raw = e.dataTransfer.getData('text/x-pdfout-pages'); t.classList.remove('dropbefore', 'dropafter'); if (!raw) return; e.preventDefault(); e.stopPropagation(); const r = t.getBoundingClientRect(); movePages(JSON.parse(raw), p.id, e.clientY >= r.top + r.height / 2); });
     thumbEls.set(p.id, t); left.append(t);
     drawThumb(c, p);
   });
@@ -425,6 +467,12 @@ function renderStatus() {
 }
 
 // ---------- page operations ----------
+function movePages(ids, targetId, after) {
+  if (ids.includes(targetId)) return;
+  const moving = pages.filter((x) => ids.includes(x.id)), rest = pages.filter((x) => !ids.includes(x.id)), at = rest.findIndex((x) => x.id === targetId);
+  if (!moving.length || at < 0) return;
+  commit(); rest.splice(at + (after ? 1 : 0), 0, ...moving); pages = rest; fullRender();
+}
 function pageOp(op) {
   if (!pages.length) return;
   const ids = sel.size ? sel : new Set([pages[curPage].id]);
@@ -479,6 +527,28 @@ function drawAnn(p, a, cw, ch) {
     g.style.cursor = tool === 'select' ? 'move' : 'default';
     return g;
   }
+  if (a.type === 'ellipse' || a.type === 'link' || a.type === 'markline') {
+    const pts = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => P(p, u, v, cw, ch));
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs) - x, hh = Math.max(...ys) - y;
+    if (a.type === 'ellipse') g.append(sv('ellipse', { cx: x + w / 2, cy: y + hh / 2, rx: Math.max(0.5, w / 2), ry: Math.max(0.5, hh / 2), fill: 'rgba(0,0,0,0.001)', stroke: a.color, 'stroke-width': a.w }));
+    else { g.append(sv('rect', { x, y, width: w, height: hh, fill: a.type === 'link' ? 'rgba(108,154,217,.16)' : 'none', stroke: '#6c9ad9', 'stroke-dasharray': '4 3', 'stroke-width': 1.5 })); if (a.type === 'link') g.append(Object.assign(sv('title'), { textContent: a.url || ('Page ' + ((pages.findIndex((q) => q.id === a.pid) + 1) || '?')) })); }
+    if (sel_) { g.append(sv('rect', { x, y, width: w, height: hh, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3' })); g.append(sv('rect', { x: x + w - 5, y: y + hh - 5, width: 10, height: 10, fill: '#ddd', stroke: '#444', class: 'rs', style: 'cursor:nwse-resize' })); }
+    g.style.cursor = tool === 'select' ? 'move' : 'default';
+    return g;
+  }
+  if (a.type === 'line') {
+    const q = a.pts.map(([u, v]) => P(p, u, v, cw, ch));
+    g.append(sv('line', { x1: q[0][0], y1: q[0][1], x2: q[1][0], y2: q[1][1], stroke: 'rgba(0,0,0,0.001)', 'stroke-width': Math.max(a.w, 12), 'stroke-linecap': 'round' }));
+    g.append(sv('line', { x1: q[0][0], y1: q[0][1], x2: q[1][0], y2: q[1][1], stroke: a.color, 'stroke-width': a.w, 'stroke-linecap': 'round', style: 'pointer-events:none' }));
+    if (a.arrow) {
+      const ang = Math.atan2(q[1][1] - q[0][1], q[1][0] - q[0][0]), L = Math.max(10, a.w * 4.5);
+      for (const k of [-1, 1]) g.append(sv('line', { x1: q[1][0], y1: q[1][1], x2: q[1][0] - L * Math.cos(ang + k * 0.45), y2: q[1][1] - L * Math.sin(ang + k * 0.45), stroke: a.color, 'stroke-width': a.w, 'stroke-linecap': 'round', style: 'pointer-events:none' }));
+    }
+    if (sel_) g.append(sv('line', { x1: q[0][0], y1: q[0][1], x2: q[1][0], y2: q[1][1], stroke: '#888', 'stroke-width': a.w + 6, 'stroke-opacity': 0.3, 'stroke-linecap': 'round', style: 'pointer-events:none' }));
+    g.style.cursor = tool === 'select' ? 'move' : 'default';
+    return g;
+  }
   if (a.type === 'rect' || a.type === 'highlight' || a.type === 'redact' || a.type === 'cover' || a.type === 'image') {
     const pts = [[a.x, a.y], [a.x + a.bw, a.y], [a.x + a.bw, a.y + a.bh], [a.x, a.y + a.bh]].map(([u, v]) => P(p, u, v, cw, ch));
     const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
@@ -493,7 +563,7 @@ function drawAnn(p, a, cw, ch) {
   } else if (a.type === 'text') {
     const [bw] = dispDims(p); const fs = a.fs * bw * zoom * (p.rot % 180 ? 1 : 1);
     const [x, y] = P(p, a.x, a.y, cw, ch);
-    const t = sv('text', { x: 0, y: 0, fill: a.color, 'fill-opacity': a.op == null ? 1 : a.op, 'font-size': fs, 'font-weight': a.bold ? 700 : 400, 'font-family': '"Noto Sans Thai", Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', 'text-anchor': a.mid ? 'middle' : 'start', transform: `translate(${x} ${y}) rotate(${p.rot + (a.ang || 0)})`, style: 'white-space:pre' });
+    const t = sv('text', { x: 0, y: 0, fill: a.color, 'fill-opacity': a.op == null ? 1 : a.op, 'font-size': fs, 'font-weight': a.bold ? 700 : 400, 'font-family': '"Noto Sans Thai", Helvetica, Arial, sans-serif', 'dominant-baseline': 'hanging', 'text-anchor': a.mid ? 'middle' : a.al === 'r' ? 'end' : 'start', transform: `translate(${x} ${y}) rotate(${p.rot + (a.ang || 0)})`, style: 'white-space:pre' });
     a.text.split('\n').forEach((ln, i) => { const s = sv('tspan', { x: 0, dy: i ? fs * 1.2 : 0 }); s.textContent = ln || ' '; t.append(s); });
     g.append(t);
     if (sel_) { requestAnimationFrame(() => { try { const b = t.getBBox(); const m = sv('rect', { x: b.x - 3, y: b.y - 3, width: b.width + 6, height: b.height + 6, fill: 'none', stroke: '#888', 'stroke-dasharray': '4 3', transform: t.getAttribute('transform') }); g.append(m); } catch {} }); }
@@ -549,11 +619,14 @@ function onPointerDown(e, p, svg, cw, ch) {
   svg.setPointerCapture(e.pointerId);
   let ann;
   if (tool === 'draw') ann = mkAnn({ type: 'draw', pts: [[u0, v0]] });
+  else if (tool === 'line' || tool === 'arrow') ann = mkAnn({ type: 'line', arrow: tool === 'arrow', pts: [[u0, v0], [u0, v0]] });
+  else if (tool === 'underline' || tool === 'strike') ann = mkAnn({ type: 'markline', kind: tool, x: u0, y: v0, bw: 0, bh: 0 });
   else ann = mkAnn({ type: tool, x: u0, y: v0, bw: 0, bh: 0 });
   const tmp = drawAnn(p, ann, cw, ch); svg.append(tmp);
   const move = (ev) => {
     const [u, v] = localUV(ev, svg, p, cw, ch);
     if (ann.type === 'draw') ann.pts.push([u, v]);
+    else if (ann.type === 'line') ann.pts[1] = [u, v];
     else { ann.x = Math.min(u0, u); ann.y = Math.min(v0, v); ann.bw = Math.abs(u - u0); ann.bh = Math.abs(v - v0); }
     const n = drawAnn(p, ann, cw, ch); tmp.replaceWith(n); Object.assign(tmp, {}); svg._tmp = n; svg.dataset.tmp = '1';
     tmpRef.el = n;
@@ -562,10 +635,13 @@ function onPointerDown(e, p, svg, cw, ch) {
   const mv = (ev) => { move(ev); };
   const up = () => {
     svg.removeEventListener('pointermove', mv); svg.removeEventListener('pointerup', up);
-    const tiny = ann.type === 'draw' ? ann.pts.length < 2 : (ann.bw < 0.004 || ann.bh < 0.004);
-    if (!tiny) { commit(); if (isField(ann)) { ann.fname = nextFieldName(ann.type); } p.annots.push(ann); }
+    const tiny = ann.type === 'draw' ? ann.pts.length < 2 : ann.type === 'line' ? Math.hypot(ann.pts[1][0] - ann.pts[0][0], ann.pts[1][1] - ann.pts[0][1]) < 0.006 : (ann.bw < 0.004 || (ann.bh < 0.004 && ann.type !== 'markline'));
+    let made = ann;
+    if (!tiny && ann.type === 'markline') { const yy = ann.kind === 'strike' ? ann.y + ann.bh / 2 : ann.y + ann.bh; made = mkAnn({ type: 'line', pts: [[ann.x, yy], [ann.x + ann.bw, yy]], w: Math.max(1.5, strokeW * 0.6) }); }
+    if (!tiny) { commit(); if (isField(made)) { made.fname = nextFieldName(made.type); } p.annots.push(made); }
     tmpRef.el.remove(); redrawOverlays();
-    if (!tiny && isField(ann)) editField(ann);
+    if (!tiny && isField(made)) editField(made);
+    if (!tiny && made.type === 'link') { if (X.editLink) X.editLink(made, p); else p.annots = p.annots.filter((q) => q !== made); }
   };
   svg.addEventListener('pointermove', mv); svg.addEventListener('pointerup', up);
 }
@@ -959,7 +1035,7 @@ async function renderRight() {
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
   right.append(h('h3', { text: 'Ink' }), swatchBox, h('label', { class: 'field', style: 'margin-top:10px' }, 'Line width', sizeIn));
-  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Recognise text (OCR)', () => openOcr()), btn('Save as Word (text)', () => exportWord()), btn('Password', () => openProtect()), btn('Export page as PNG', () => exportPng()), btn('Export all pages as images', () => exportImages()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed()), btn('Watermark', () => openWatermark()), btn('Page numbers', () => openPageNumbers()), btn('Print', () => printDoc())));
+  right.append(h('h3', { text: 'Tools' }), h('div', { class: 'col' }, btn('Recognise text (OCR)', () => openOcr()), btn('Save as Word', () => exportWord()), btn('Password', () => openProtect()), btn('Export page as PNG', () => exportPng()), btn('Export all pages as images', () => exportImages()), btn('Extract all text', () => extractText()), btn('Save compressed', () => saveCompressed()), btn('Watermark', () => openWatermark()), btn('Page numbers', () => openPageNumbers()), btn('Print', () => printDoc())));
   const cur = pages[curPage]; const ent = cur && cur.src ? sources.get(cur.src) : null;
   if (ent && ent.fields.length) {
     right.append(h('h3', { text: 'Form fields' }));
@@ -1049,7 +1125,7 @@ async function extractText() {
   if (r) toast('Saved ' + r.name);
 }
 
-// ---------- Word (text only) ----------
+// ---------- zip + xml helpers (used by the Word export) ----------
 const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
 function zipStore(files) {
@@ -1070,36 +1146,7 @@ function zipStore(files) {
   return out;
 }
 const xmlEsc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-async function exportWord() {
-  if (!pages.length) return;
-  const body = []; let pagesWithText = 0;
-  for (let i = 0; i < pages.length; i++) {
-    const p = pages[i];
-    let lines = (await linesFor(p)).map((l) => ({ t: l.text, fs: l.fs, v0: l.v0, v1: l.v1, u0: l.u0 }));
-    if (!lines.length && p.ocr) lines = p.ocr.lines.map((l) => ({ t: l.t, fs: (l.y1 - l.y0) * p.h * 0.85, v0: l.y0, v1: l.y1, u0: l.x0 }));
-    lines.sort((a, b) => a.v0 - b.v0 || a.u0 - b.u0);
-    if (lines.length) pagesWithText++;
-    const sizes = lines.map((l) => l.fs).sort((a, b) => a - b), med = sizes.length ? sizes[Math.floor(sizes.length / 2)] : 11;
-    let cur = null;
-    const flush = () => { if (!cur) return; const pt = Math.max(8, Math.min(30, Math.round(cur.fs))); const big = cur.fs > med * 1.25;
-      body.push('<w:p><w:r><w:rPr>' + (big ? '<w:b/>' : '') + '<w:sz w:val="' + pt * 2 + '"/></w:rPr><w:t xml:space="preserve">' + xmlEsc(cur.t) + '</w:t></w:r></w:p>'); cur = null; };
-    for (const l of lines) {
-      const step = l.v1 - l.v0;
-      if (cur && l.v0 - cur.v1 < step * 0.9 && Math.abs(l.fs - cur.fs) < cur.fs * 0.2) { cur.t += ' ' + l.t; cur.v1 = l.v1; }
-      else { flush(); cur = { t: l.t, fs: l.fs, v0: l.v0, v1: l.v1 }; }
-    }
-    flush();
-    if (i < pages.length - 1) body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
-  }
-  if (!pagesWithText) { toast('No text found. Run OCR first for scans and pictures.'); return; }
-  const enc = new TextEncoder();
-  const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + body.join('') + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>';
-  const ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
-  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-  const bytes = zipStore([{ name: '[Content_Types].xml', data: enc.encode(ct) }, { name: '_rels/.rels', data: enc.encode(rels) }, { name: 'word/document.xml', data: enc.encode(doc) }]);
-  const r = await window.host.saveFile({ name: (fileName || 'document').replace(/\.pdf$/i, '') + '.docx', filters: [['Word document', ['docx']]], data: bytes });
-  if (r) toast('Saved ' + r.name + ' (text only, pictures and layout are not kept)');
-}
+async function exportWord() { if (X.exportWord) return X.exportWord(); }
 
 // ---------- export ----------
 const hex = (c) => { const n = parseInt(c.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
@@ -1129,13 +1176,38 @@ function drawMixed(page, F, text, x, y, size, color, deg = 0, opacity = 1) {
   }
 }
 const mixedWidth = (F, text, size) => (text.match(/[฀-๿]+|[^฀-๿]+/g) || []).reduce((s, r) => { const isTh = THAI.test(r) && F.thai; return s + (isTh ? F.thai : F.latin).widthOfTextAtSize(isTh ? r : winAnsi(r), size); }, 0);
-async function buildPdf(list, enc) {
-  const out = await PDFDocument.create();
+function addLinksAndOutline(out, list, outPages, linkJobs) {
+  const { PDFName, PDFString, PDFHexString } = window.PDFLib, c = out.context;
+  const refOf = (pid) => { const o = outPages.find((x) => x.id === pid); return o ? o.page.ref : null; };
+  for (const { page, rect, a } of linkJobs) {
+    const d = { Type: 'Annot', Subtype: 'Link', Rect: rect, Border: [0, 0, 0] };
+    if (a.url) d.A = c.obj({ Type: 'Action', S: 'URI', URI: PDFString.of(a.url) });
+    else { const r = refOf(a.pid); if (!r) continue; d.Dest = c.obj([r, PDFName.of('Fit')]); }
+    page.node.addAnnot(c.register(c.obj(d)));
+  }
+  const items = outline.map((o) => ({ ...o, ref: refOf(o.pid) })).filter((o) => o.ref);
+  if (!items.length) return;
+  const root = c.nextRef(); const nodes = items.map((o) => ({ o, ref: c.nextRef(), kids: [], parent: null }));
+  const stack = [], top = [];
+  nodes.forEach((n) => { while (stack.length && stack[stack.length - 1].o.level >= n.o.level) stack.pop(); n.parent = stack.length ? stack[stack.length - 1] : null; (n.parent ? n.parent.kids : top).push(n); stack.push(n); });
+  const count = (n) => n.kids.reduce((s, k) => s + 1 + count(k), 0);
+  const put = (n, siblings, i) => {
+    const d = { Title: PDFHexString.fromText(n.o.title || ' '), Parent: n.parent ? n.parent.ref : root, Dest: c.obj([n.o.ref, PDFName.of('Fit')]) };
+    if (i > 0) d.Prev = siblings[i - 1].ref; if (i < siblings.length - 1) d.Next = siblings[i + 1].ref;
+    if (n.kids.length) { d.First = n.kids[0].ref; d.Last = n.kids[n.kids.length - 1].ref; d.Count = count(n); }
+    c.assign(n.ref, c.obj(d)); n.kids.forEach((k, j) => put(k, n.kids, j));
+  };
+  top.forEach((n, i) => put(n, top, i));
+  c.assign(root, c.obj({ Type: 'Outlines', First: top[0].ref, Last: top[top.length - 1].ref, Count: top.length + top.reduce((s, n) => s + count(n), 0) }));
+  out.catalog.set(PDFName.of('Outlines'), root);
+}
+async function buildPdf(list, enc, opts) {
+  const out = await PDFDocument.create(opts && opts.noMeta ? { updateMetadata: false } : undefined);
   const font = await out.embedFont(StandardFonts.Helvetica);
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
   const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
   if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
-  const cache = new Map();
+  const cache = new Map(), linkJobs = [], outPages = [];
   for (const p of list) {
     let page; let q = p;
     const redacts = p.annots.filter((a) => a.type === 'redact' || a.perm);
@@ -1184,9 +1256,21 @@ async function buildPdf(list, enc) {
         lines.forEach((ln, i) => {
           let [x, y] = pt(a.x, a.y + (size * 0.8 + i * size * 1.2) / dh);
           const th = ((q.r0 - ang) * Math.PI) / 180;
-          if (a.mid) { const w = mixedWidth(a.bold ? { ...F, latin: F.bold } : F, ln, size); x -= (w / 2) * Math.cos(th); y -= (w / 2) * Math.sin(th); }
+          if (a.mid || a.al === 'r') { const w = mixedWidth(a.bold ? { ...F, latin: F.bold } : F, ln, size) / (a.mid ? 2 : 1); x -= w * Math.cos(th); y -= w * Math.sin(th); }
           drawMixed(page, a.bold ? { ...F, latin: F.bold } : F, ln, x, y, size, hex(a.color), q.r0 - ang, a.op == null ? 1 : a.op);
         });
+      } else if (a.type === 'ellipse') {
+        const c = []; for (let i = 0; i < 48; i++) { const t = (i / 48) * Math.PI * 2; c.push(svgPt(a.x + a.bw / 2 + Math.cos(t) * a.bw / 2, a.y + a.bh / 2 + Math.sin(t) * a.bh / 2)); }
+        page.drawSvgPath('M' + c.map((q) => q.join(' ')).join(' L') + ' Z', { ...origin, borderColor: hex(a.color), borderWidth: a.w * (dw / 800), color: undefined, opacity: 0, borderOpacity: 1 });
+      } else if (a.type === 'line') {
+        const [[x1, y1], [x2, y2]] = a.pts.map(([u, v]) => svgPt(u, v));
+        let d = `M${x1} ${y1} L${x2} ${y2}`;
+        if (a.arrow) { const ang = Math.atan2(y2 - y1, x2 - x1), L = Math.max(8, a.w * (dw / 800) * 4.5); for (const k of [-1, 1]) d += ` M${x2} ${y2} L${x2 - L * Math.cos(ang + k * 0.45)} ${y2 - L * Math.sin(ang + k * 0.45)}`; }
+        page.drawSvgPath(d, { ...origin, borderColor: hex(a.color), borderWidth: a.w * (dw / 800), color: undefined, opacity: 0, borderOpacity: 1 });
+      } else if (a.type === 'link') {
+        const cs = [[a.x, a.y], [a.x + a.bw, a.y + a.bh]].map(([u, v]) => pt(u, v));
+        const rect = [Math.min(cs[0][0], cs[1][0]), Math.min(cs[0][1], cs[1][1]), Math.max(cs[0][0], cs[1][0]), Math.max(cs[0][1], cs[1][1])];
+        linkJobs.push({ page, rect, a });
       } else if (a.type === 'image') {
         const img = await out.embedPng(a.data);
         const [x, y] = pt(a.x, a.y + a.bh);
@@ -1204,15 +1288,20 @@ async function buildPdf(list, enc) {
       }
     }
     page.setRotation(degrees((base + p.rot) % 360));
+    outPages.push({ id: p.id, page });
   }
-  out.setProducer('PDFout'); out.setCreator('PDFout');
+  addLinksAndOutline(out, list, outPages, linkJobs);
+  if (opts && opts.noMeta) { out.setProducer(''); out.setCreator(''); }
+  else { out.setProducer('PDFout'); out.setCreator('PDFout'); }
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
+  if (meta.subject) out.setSubject(meta.subject); if (meta.keywords) out.setKeywords(String(meta.keywords).split(/[,;]+/).map((k) => k.trim()).filter(Boolean));
+  if (opts && opts.post) await opts.post(out);
   if (enc && (enc.user || enc.owner || !enc.print || !enc.copy || !enc.edit)) {
     const rnd = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,
       permissions: { printing: enc.print ? 'highResolution' : false, copying: !!enc.copy, modifying: !!enc.edit, annotating: !!enc.edit, fillingForms: !!enc.edit, contentAccessibility: true, documentAssembly: !!enc.edit } });
   }
-  return await out.save();
+  return await out.save(opts && opts.save ? opts.save : undefined);
 }
 async function save() {
   if (!pages.length) return;
@@ -1224,7 +1313,20 @@ async function save() {
   } catch (e) { toast('Save failed: ' + (e.message || e)); }
 }
 
+let savedSnap = null;
+initExtra(X, {
+  h, btn, toast, uid, clamp, sv, pdfjs, PDFLib: window.PDFLib, tr, getLang, sources, host: window.host, stage, left,
+  get pages() { return pages; }, set pages(v) { pages = v; },
+  get curPage() { return curPage; }, get sel() { return sel; }, set sel(v) { sel = v; },
+  get fileName() { return fileName; }, set fileName(v) { fileName = v; },
+  get meta() { return meta; }, set meta(v) { meta = v; },
+  get outline() { return outline; }, set outline(v) { outline = v; },
+  get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
+  commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
+  buildPdf, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
+  markSaved() { savedSnap = snapshot(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
+});
 fullRender();
 
-let savedSnap = null;
 window.addEventListener('beforeunload', (e) => { if (pages.length && snapshot() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });

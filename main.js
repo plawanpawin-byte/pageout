@@ -97,6 +97,38 @@ ipcMain.handle('file:saveSeq', async (_e, opts = {}) => {
   return items.length;
 });
 
+ipcMain.handle('file:saveMany', async (_e, opts = {}) => {
+  const items = Array.isArray(opts.items) ? opts.items : [];
+  if (!items.length) return null;
+  const r = await dialog.showOpenDialog(win, { title: opts.title || 'Choose a folder', properties: ['openDirectory', 'createDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const dir = r.filePaths[0]; let count = 0;
+  for (const it of items) {
+    let nm = safeName(it.name), full = path.join(dir, nm), k = 2;
+    const ext = path.extname(nm), stem = nm.slice(0, nm.length - ext.length);
+    while (fs.existsSync(full)) full = path.join(dir, `${stem} (${k++})${ext}`);
+    fs.writeFileSync(full, Buffer.from(it.data)); count++;
+  }
+  return { dir: path.basename(dir), count };
+});
+
+// lists the files of a folder the user picked (nothing is read until the page asks for one file)
+ipcMain.handle('file:openFolder', async (_e, opts = {}) => {
+  const r = await dialog.showOpenDialog(win, { title: opts.title || 'Choose a folder', properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const root = r.filePaths[0], exts = new Set((opts.exts || ['pdf']).map((x) => '.' + x.toLowerCase())), out = [];
+  const walk = (d, depth) => {
+    let ents; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) { if (depth < 6 && out.length < 5000) walk(full, depth + 1); }
+      else if (exts.has(path.extname(e.name).toLowerCase())) { try { const st = fs.statSync(full); out.push({ id: grant(full), name: e.name, rel: path.relative(root, full), size: st.size }); } catch {} }
+    }
+  };
+  walk(root, 0);
+  return { dir: path.basename(root), files: out };
+});
+
 ipcMain.handle('file:write', async (_e, id, data) => {
   fs.writeFileSync(pathOf(id), Buffer.from(data));
   return true;

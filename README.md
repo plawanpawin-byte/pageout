@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.20 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.21 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -36,7 +36,11 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.20
+## What is new in 1.0.21
+
+**Fix:** saving a PDF that contains Thai text failed in 1.0.20. That is fixed. Nothing else changed. A beta with many more tools is available as 1.0.22 on the releases page.
+
+## What was new in 1.0.20
 
 **Password protection.** Open a locked PDF by typing its password (a wrong password just asks again). To lock a PDF, use **Protect > Password**: choose a password to open it and, if you like, forbid printing, copying or editing. The file is saved with strong 256-bit encryption made on your computer. If you forget the password nobody can recover the file, so keep it somewhere safe.
 

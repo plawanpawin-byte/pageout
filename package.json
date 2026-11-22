@@ -1,7 +1,7 @@
 {
   "name": "pdfout",
   "productName": "PDFout",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Read, annotate, organise and sign PDF files. Everything stays on your computer.",
   "main": "main.js",
   "author": "Lookout",

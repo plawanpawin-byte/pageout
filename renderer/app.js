@@ -388,19 +388,22 @@ function onPointerDown(e, p, svg, cw, ch) {
     const a = p.annots.find((x) => x.id === aEl.dataset.aid); if (!a) return;
     selAnn = { pageId: p.id, annId: a.id };
     const resize = e.target.classList.contains('rs');
+    const curSvg = () => (pageEls.get(p.id) && pageEls.get(p.id).querySelector('svg.ov')) || svg;
     const [su, sv_] = localUV(e, svg, p, cw, ch);
     const orig = JSON.parse(JSON.stringify(a));
-    commit();
-    svg.setPointerCapture(e.pointerId);
+    let moved = false;
+    // redrawOverlays() swaps the overlay <svg> while dragging, so listen on the window and
+    // measure against whichever overlay is current (the old one was being detached after the first move)
     const move = (ev) => {
-      const [u, v] = localUV(ev, svg, p, cw, ch); const du = u - su, dv = v - sv_;
+      const [u, v] = localUV(ev, curSvg(), p, cw, ch); const du = u - su, dv = v - sv_;
+      if (!moved) { if (Math.abs(du) + Math.abs(dv) < 0.002) return; moved = true; commit(); }
       if (resize && a.bw != null) { a.bw = Math.max(0.01, orig.bw + du); a.bh = Math.max(0.01, orig.bh + dv); }
       else if (a.pts) a.pts = orig.pts.map(([x, y]) => [x + du, y + dv]);
       else { a.x = orig.x + du; a.y = orig.y + dv; }
       redrawOverlays();
     };
-    const up = () => { svg.removeEventListener('pointermove', move); svg.removeEventListener('pointerup', up); renderRight(); };
-    svg.addEventListener('pointermove', move); svg.addEventListener('pointerup', up);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); renderRight(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
     redrawOverlays(); renderRight();
     return;
   }

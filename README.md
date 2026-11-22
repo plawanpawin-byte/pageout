@@ -2,7 +2,7 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.16 for Windows · Free · Offline · No account</p>
+<p align="center"><b>Read, annotate and sign PDFs</b><br>Version 1.0.17 for Windows · Free · Offline · No account</p>
 
 <p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/latest"><b>Download PDFout</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
@@ -36,9 +36,9 @@ It can also tidy a document. You can rotate a sideways page, delete a page you d
 2. Pick the highlighter in the top bar, drag over a sentence, then press **Save** to keep a copy with the highlight in it.
 3. Choose **Export page as PNG** in the right panel to turn the current page into a picture.
 
-## What is new in 1.0.16
+## What is new in 1.0.17
 
-**Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
+**Fixed:** highlights, boxes, pen strokes and text notes can be dragged again with the Select tool (the drag used to stop after the first pixel). **Ribbon tabs** (Home, Comment, Organise, Protect, Tools, View) now group the tools like PDFelement does. **Renamed from Pageout to PDFout.** The app now opens on a **home screen** with Quick tools (annotate, sign, redact, organise, combine, compress, export text, blank PDF), a Recent files list and a Starred files tab, and a Home button returns to it. The program now shows as PDFout (not Electron) in Task Manager and the taskbar. It also has a new look inspired by Google's own tools (AI Studio, Colab, Gemini): a calm dark charcoal theme, rounded pill buttons, a soft blue accent and roomier spacing. The app icon is now a colour logo so you can find PDFout at a glance in the Start menu and in the Lookout launcher. All screenshots below were taken again with the new look.
 
 ## In plain words
 
@@ -212,6 +212,9 @@ Only inside the files you sign and on your own computer. Nothing is sent anywher
 
 **What does "redact for real" mean?**  
 Many programs only draw a black box over text, and the text can still be copied from underneath. PDFout removes the text and image underneath, so it cannot be recovered.
+
+**Why can I no longer select text on a page I redacted?**  
+To remove the hidden text for real, PDFout saves a redacted page as a picture. Text on that page can no longer be selected or searched. Pages without redaction keep their text.
 
 ## About Lookout
 

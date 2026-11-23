@@ -355,10 +355,18 @@ async function openFiles(merge, preset) {
 }
 
 // ---------- undo ----------
-const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })));
+// Big picture strings are stored once and snapshots only hold a short id, so 80 undo steps do not copy every image 80 times.
+const BLOB_MIN = 2000, blobIds = new Map(), blobList = [];
+const snapReplacer = (k, v) => {
+  if (typeof v !== 'string' || v.length < BLOB_MIN || !v.startsWith('data:')) return v;
+  let id = blobIds.get(v); if (id === undefined) { id = blobList.length; blobList.push(v); blobIds.set(v, id); }
+  return '\u0001blob:' + id;
+};
+const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
+const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
 const stamp = () => snapshot() + JSON.stringify([outline, meta]);   // what counts as unsaved work
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
-function restore(s) { pages = JSON.parse(s); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
+function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
 function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); }
 function updateButtons() { bUndo.disabled = !undoStack.length; bRedo.disabled = !redoStack.length; drawRibbon(); }
@@ -948,13 +956,19 @@ async function linesFor(p) {
 async function prepareEdit() { await Promise.all(pages.map((p) => linesFor(p))); if (tool === 'edittext') redrawOverlays(); }
 const toHex = (r, g, b) => '#' + [r, g, b].map((n) => Math.round(n).toString(16).padStart(2, '0')).join('');
 // looks at the picture of the page behind a line to pick the patch colour (background) and the text colour
-async function sampleColors(p, l) {
+// `cache` (optional Map) keeps the rendered page so many lines on one page cost a single render
+async function sampleColors(p, l, cache) {
   try {
-    const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
-    const vp = pg.getViewport({ scale: 1.5, rotation: pg.rotate });
-    const cv = h('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
-    const g = cv.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
-    await pg.render({ canvasContext: g, viewport: vp }).promise;
+    let ent = cache && cache.get(p.id);
+    if (!ent) {
+      const pg0 = await sources.get(p.src).pdf.getPage(p.index + 1);
+      const vp0 = pg0.getViewport({ scale: 1.5, rotation: pg0.rotate });
+      const cv0 = h('canvas'); cv0.width = Math.round(vp0.width); cv0.height = Math.round(vp0.height);
+      const g0 = cv0.getContext('2d', { willReadFrequently: true }); g0.fillStyle = '#fff'; g0.fillRect(0, 0, cv0.width, cv0.height);
+      await pg0.render({ canvasContext: g0, viewport: vp0 }).promise;
+      ent = { pg: pg0, cv: cv0, g: g0 }; if (cache) cache.set(p.id, ent);
+    }
+    const { pg, cv, g } = ent;
     let bold = false; try { const f = pg.commonObjs.get(l.fn); bold = !!(f && (f.bold || /bold|black|heavy|semibold|demi/i.test(f.loadedName || f.name || ''))); } catch {}
     const x0 = Math.max(0, Math.floor((l.u0 - 0.004) * cv.width)), x1 = Math.min(cv.width, Math.ceil((l.u1 + 0.004) * cv.width));
     const y0 = Math.max(0, Math.floor((l.v0 - 0.004) * cv.height)), y1 = Math.min(cv.height, Math.ceil((l.v1 + 0.004) * cv.height));

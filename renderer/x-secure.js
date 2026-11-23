@@ -184,12 +184,13 @@ export function initSecure(X, c) {
     if (!need()) return;
     if (!forge()) { toast('The signing library did not load'); return; }
     if (c.protectOpts) { toast('Remove the password first (Protect > Password). A signed file cannot be locked at the same time.'); return; }
+    const SELF_NOTE = 'A signing ID made here proves the file was not changed after you signed it. Other PDF readers will say the signer is not verified, because only a paid certificate authority can vouch for who you are. That message is normal.';
     const rec = loadId();
     const mode = selectEl(c, [...(rec ? [['mine', `My signing ID: ${rec.name}`]] : []), ['new', 'Create a new signing ID'], ['file', 'Use a certificate file (.pfx or .p12)']], rec ? 'mine' : 'new');
     const pass = h('input', { type: 'password', style: 'width:100%' }), passFile = h('input', { type: 'password', style: 'width:100%' }), pass2 = h('input', { type: 'password', style: 'width:100%' }), nm = txt(c, ''), em = txt(c, ''), org = txt(c, '');
     let pfx = null; const pfxInfo = note(c, 'No file chosen'), pfxBtn = btn('Choose certificate file', async () => { const f = await c.host.openFiles({ multi: false, filters: [['Certificate', ['pfx', 'p12']]] }); if (f.length) { pfx = bytesOf(f[0].data); pfxInfo.textContent = f[0].name; } });
     const rows = { mine: [fld(c, 'Your passphrase', pass)], new: [fld(c, 'Name', nm), fld(c, 'Email (optional)', em), fld(c, 'Organisation (optional)', org), fld(c, 'Choose a passphrase', pass2)], file: [pfxBtn, pfxInfo, fld(c, 'Certificate password', passFile)] };
-    const holder = h('div', { class: 'col', style: 'gap:8px' }), show = () => { holder.textContent = ''; const set = rows[mode.value]; holder.append(...set); }; mode.onchange = show; show();
+    const holder = h('div', { class: 'col', style: 'gap:8px' }), show = () => { holder.textContent = ''; const set = rows[mode.value]; if (mode.value !== 'file') holder.append(note(c, SELF_NOTE)); holder.append(...set); }; mode.onchange = show; show();
     const reason = txt(c, '', 'for example I approve this document'), place = txt(c, ''), pos = selectEl(c, [['brLast', 'Bottom right of the last page'], ['blFirst', 'Bottom left of the first page'], ['cCur', 'Centre of this page'], ['none', 'Not visible']], 'brLast');
     modal(c, 'Digital signature', [note(c, 'Signs the whole document with a certificate. Anyone can check that it is yours and that nothing changed afterwards. Changing the saved file breaks the signature, so sign last.'),
       fld(c, 'Sign with', mode), holder, fld(c, 'Reason (optional)', reason), fld(c, 'Place (optional)', place), fld(c, 'Where to show it', pos),

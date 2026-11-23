@@ -2,15 +2,15 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>The PDF desk that never leaves your computer</b><br>Version 1.0.22 (beta) for Windows · Free · Offline · No account</p>
+<p align="center"><b>The PDF desk that never leaves your computer</b><br>Version 1.0.23 (beta) for Windows · Free · Offline · No account</p>
 
-<p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.22"><b>Download the beta</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
+<p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.23"><b>Download the beta</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
 ---
 
 ![PDFout home screen](screenshots/00-home.png)
 
-> **Beta notice.** Version 1.0.22 is a public beta. It contains everything described below and has been tested by driving the real application, but it has not had the long soak of a stable release. If something misbehaves, your original files are never touched, because PDFout always saves to a new file.
+> **Beta notice.** Version 1.0.23 is a public beta. It contains everything described below and has been tested by driving the real application, but it has not had the long soak of a stable release. If something misbehaves, your original files are never touched, because PDFout always saves to a new file.
 
 ## The story in one minute
 
@@ -192,7 +192,7 @@ Opens PDF files (including ones locked with a password, if you know it), picture
 
 ## Install
 
-1. Open the [v1.0.22 release](https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.22) and download **PDFout-Setup-1.0.22.exe**. You can also install it from the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
+1. Open the [v1.0.23 release](https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.23) and download **PDFout-Setup-1.0.23.exe**. You can also install it from the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
 2. Run the installer. It installs just for you, so it does not need administrator rights.
 3. Windows may show a blue **Windows protected your PC** screen because the installer is not signed with a paid certificate. Click **More info**, then **Run anyway**.
 4. Open PDFout from the Start menu.

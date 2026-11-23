@@ -290,12 +290,14 @@ export function initPages(X, c) {
       const q = find.value; if (!q) return; close();
       const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp(esc, cs.checked ? 'g' : 'gi');
       let n = 0, lines = 0; c.commit();
+      const test = new RegExp(esc, cs.checked ? '' : 'i');
       for (const p of c.pages) {
         if (!p.src) continue; const [bw, bh] = c.dispDims(p);
+        const cache = new Map();   // one render per page, dropped before the next page
         for (const l of await c.linesFor(p)) {
-          if (!new RegExp(esc, cs.checked ? '' : 'i').test(l.text)) continue;
+          if (!test.test(l.text)) continue;
           n += (l.text.match(re) || []).length; lines++;
-          const col = await c.sampleColors(p, l), text = l.text.replace(re, () => rep.value);
+          const col = await c.sampleColors(p, l, cache), text = l.text.replace(re, () => rep.value);
           p.annots.push(c.mkAnn({ type: 'cover', x: l.u0 - 0.002, y: l.v0 - 0.002, bw: l.u1 - l.u0 + 0.004, bh: l.v1 - l.v0 + 0.004, fillc: col.bg, perm: perm.checked }));
           if (text.trim()) p.annots.push(c.mkAnn({ type: 'text', x: l.u0, y: l.vb - (0.8 * l.fs) / bh, text, fs: l.fs / bw, color: col.fg, bold: col.bold }));
         }

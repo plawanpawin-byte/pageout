@@ -1315,12 +1315,10 @@ function addLinksAndOutline(out, list, outPages, linkJobs) {
   out.catalog.set(PDFName.of('Outlines'), root);
 }
 // form values edited in the panel, written into a copy of the source; the fields stay fillable
-async function withFormValues(ent) {
-  const changed = (ent.fields || []).filter((f) => ent.vals[f.name] !== (ent.vals0 || {})[f.name]);
-  if (!changed.length) return null;
-  const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
-  const form = d.getForm(); const fonts = {};
-  const fontFor = async (s) => {
+// a font that can draw s in a field picture of d: Thai -> Noto Sans Thai, other non-Latin -> Noto Sans, else null (use Helvetica)
+const fieldFonts = (d) => {
+  const fonts = {};
+  return async (s) => {
     const k = THAI.test(s) ? 'thai' : winAnsi(s) !== s ? 'uni' : null;
     if (!k) return null;
     if (!fonts[k]) {
@@ -1330,6 +1328,32 @@ async function withFormValues(ent) {
     }
     return fonts[k];
   };
+};
+// Fields whose widgets have no picture (/AP) rely on the viewer to draw the answer (NeedAppearances).
+// Flattening keeps only pictures, so build one for those fields first, with a font that has the characters.
+// Fields that already have a picture keep it.
+async function fillMissingAppearances(d) {
+  const form = d.getForm(), fontFor = fieldFonts(d); let latin = null;
+  const font = async (s) => (await fontFor(s)) || (latin = latin || await d.embedFont(StandardFonts.Helvetica));
+  for (const fld of form.getFields()) {
+    const ws = fld.acroField.getWidgets();
+    if (!ws.length || ws.every((w) => w.dict.get(PDFName.of('AP')))) continue;
+    try {
+      if (fld.getText) fld.updateAppearances(await font(fld.getText() || ''));
+      else if (fld.getSelected) fld.updateAppearances(await font(fld.getSelected().join(' ')));
+      else if (fld.check || fld.select) fld.updateAppearances();
+    } catch (e) { console.warn('form field picture not made', fld.getName(), e); }
+  }
+}
+// names of form fields whose edited value could not be written by the last buildPdf / applyForm
+let formFails = [];
+const failNote = () => (formFails.length ? '. These form fields could not be written: ' + formFails.join(', ') : '');
+async function withFormValues(ent) {
+  const changed = (ent.fields || []).filter((f) => ent.vals[f.name] !== (ent.vals0 || {})[f.name]);
+  if (!changed.length) return null;
+  const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+  const form = d.getForm(); const fonts = {};
+  const fontFor = fieldFonts(d);
   for (const f of changed) {
     const v = ent.vals[f.name];
     try {
@@ -1494,7 +1518,7 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, withFormValues, keepFormFields, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, fillMissingAppearances,linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });

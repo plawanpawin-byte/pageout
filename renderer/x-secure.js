@@ -4,7 +4,7 @@ import { modal, fld, note, sel as selectEl, txt, baseName, todayStr, bytesOf } f
 export function initSecure(X, c) {
   const { h, btn, toast } = c;
   const need = () => { if (!c.pages.length) { toast('Open a PDF first'); return false; } return true; };
-  const saveBytes = async (suffix, bytes) => { const r = await c.host.saveFile({ name: baseName(c.fileName || 'document') + suffix, filters: [['PDF', ['pdf']]], data: bytes }); if (r) toast('Saved ' + r.name); return r; };
+  const saveBytes = async (suffix, bytes) => { const r = await c.host.saveFile({ name: baseName(c.fileName || 'document') + suffix, filters: [['PDF', ['pdf']]], data: bytes }); if (r) toast('Saved ' + r.name + c.failNote()); return r; };
 
   // ---------- clean metadata ----------
   X.sanitize = () => {
@@ -23,7 +23,7 @@ export function initSecure(X, c) {
   X.flatten = () => {
     if (!need()) return;
     modal(c, 'Flatten', [note(c, 'Saves a copy where every form field becomes plain text on the page. Nobody can change the answers afterwards.')], (close) => [btn('Cancel', close), btn('Save flattened copy', async () => {
-      close(); try { const bytes = await c.buildPdf(c.pages, null, { post: async (out) => { try { out.getForm().flatten(); } catch (e) { toast('Some form fields could not be flattened: ' + (e.message || e)); } } }); await saveBytes('-flat.pdf', bytes); } catch (e) { toast('Failed: ' + (e.message || e)); }
+      close(); try { const bytes = await c.buildPdf(c.pages, null, { post: async (out) => { try { await c.fillMissingAppearances(out); out.getForm().flatten({ updateFieldAppearances: false }); } catch (e) { toast('Some form fields could not be flattened: ' + (e.message || e)); } } }); await saveBytes('-flat.pdf', bytes); } catch (e) { toast('Failed: ' + (e.message || e)); }
     }, 'primary')]);
   };
 

@@ -24,16 +24,27 @@ export function initPages(X, c) {
   const need = () => { if (!c.pages.length) { toast('Open a PDF first'); return false; } return true; };
 
   // builds a new source document that holds the given pages after `perPage` changed each copy; swaps the pages over to it
+  // The other pages of the same files move to the new document too, unchanged: a form field can sit on several
+  // pages, and pages left on the old file would keep their own copy of it (values typed there were lost on save).
   async function swapSource(entries, build, after) {
-    const out = await PDFDocument.create(); const cache = new Map(); const info = [];
-    for (let i = 0; i < entries.length; i++) {
-      const p = entries[i];
-      if (!cache.has(p.src)) cache.set(p.src, await PDFDocument.load(c.sources.get(p.src).bytes, { ignoreEncryption: true }));
-      info[i] = await build(out, cache.get(p.src), p, i);
+    const out = await PDFDocument.create(); const cache = new Map(); const info = []; const keyMap = new Map();
+    const srcs = new Set(entries.map((p) => p.src)), chosen = new Set(entries);
+    const all = c.pages.filter((p) => p.src && srcs.has(p.src) && !chosen.has(p)).concat(entries);
+    for (let i = 0; i < all.length; i++) {
+      const p = all[i];
+      if (!cache.has(p.src)) { const ent = c.sources.get(p.src); cache.set(p.src, c.markSource((await c.withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true }), p.src)); }
+      const n0 = out.getPageCount();
+      if (chosen.has(p)) info[i] = await build(out, cache.get(p.src), p, i);
+      else out.addPage(await c.copyPage(out, cache.get(p.src), p.index));
+      const made = out.getPages().slice(n0);
+      if (made.length && !keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, made[0].ref);
+      // keep form fields (and their current values) on the rebuilt pages
+      for (const pg of made) c.keepFormFields(out, pg, cache.get(p.src));
     }
-    const bytes = new Uint8Array(await out.save());
+    await c.pruneCopies(out, keyMap);
+    const bytes = new Uint8Array(await out.save({ updateFieldAppearances: false }));
     const id = await c.addSource(c.fileName || 'document.pdf', bytes); const ps = await c.pagesOf(id);
-    entries.forEach((p, i) => { after(p, info[i]); p.src = id; p.index = i; p.w = ps[i].w; p.h = ps[i].h; p.r0 = ps[i].r0; });
+    all.forEach((p, i) => { if (chosen.has(p)) after(p, info[i]); p.src = id; p.index = i; p.w = ps[i].w; p.h = ps[i].h; p.r0 = ps[i].r0; });
   }
   const remapOcr = (p, k) => {
     if (!p.ocr) return;
@@ -55,7 +66,7 @@ export function initPages(X, c) {
     if (!entries.length) { toast('Nothing to crop'); return 0; }
     c.commit();
     await swapSource(entries, async (out, src, p) => {
-      const [pg] = await out.copyPages(src, [p.index]); out.addPage(pg);
+      const pg = await c.copyPage(out, src, p.index); out.addPage(pg);
       const cb = pg.getCropBox(), k = baseMargins(p, m);
       const A = c.dispToPdf({ w: cb.width, h: cb.height, r0: p.r0 }, k.l, k.t, cb), B = c.dispToPdf({ w: cb.width, h: cb.height, r0: p.r0 }, 1 - k.r, 1 - k.b, cb);
       pg.setCropBox(Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]));

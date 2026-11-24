@@ -115,7 +115,7 @@ export const TH = {
   'Choose folder': 'เลือกโฟลเดอร์', 'Choose files': 'เลือกไฟล์', 'No files chosen yet.': 'ยังไม่ได้เลือกไฟล์', 'Pick a folder or some files, then search. Nothing leaves this computer.': 'เลือกโฟลเดอร์หรือไฟล์ แล้วค้นหา ไม่มีอะไรออกจากเครื่องนี้', 'Choose a folder or files first': 'เลือกโฟลเดอร์หรือไฟล์ก่อน', 'Stopped.': 'หยุดแล้ว', 'Open this file and close the current one without saving?': 'เปิดไฟล์นี้และปิดไฟล์ปัจจุบันโดยไม่บันทึกหรือไม่?',
   'Nothing found. Scanned pages without OCR have no text to search.': 'ไม่พบ หน้าสแกนที่ไม่ได้ทำ OCR จะไม่มีข้อความให้ค้นหา',
   // view helpers
-  'Keyboard shortcuts': 'ปุ่มลัดคีย์บอร์ด', 'Open a file': 'เปิดไฟล์', 'Print ': 'พิมพ์', 'Search the text': 'ค้นหาข้อความ', 'Zoom in or out': 'ซูมเข้าหรือออก', 'Previous or next page': 'หน้าก่อนหน้าหรือถัดไป', 'First or last page': 'หน้าแรกหรือหน้าสุดท้าย', 'Delete the selected mark': 'ลบเครื่องหมายที่เลือก', 'Deselect, or close a window': 'ยกเลิกการเลือก หรือปิดหน้าต่าง',
+  'Keyboard shortcuts': 'ปุ่มลัดคีย์บอร์ด', 'Move between the top bar, page list, document and details': 'ย้ายไปมาระหว่างแถบด้านบน รายการหน้า เอกสาร และรายละเอียด', 'Open a file': 'เปิดไฟล์', 'Print ': 'พิมพ์', 'Search the text': 'ค้นหาข้อความ', 'Zoom in or out': 'ซูมเข้าหรือออก', 'Previous or next page': 'หน้าก่อนหน้าหรือถัดไป', 'First or last page': 'หน้าแรกหรือหน้าสุดท้าย', 'Delete the selected mark': 'ลบเครื่องหมายที่เลือก', 'Deselect, or close a window': 'ยกเลิกการเลือก หรือปิดหน้าต่าง',
   'Ctrl + mouse wheel': 'Ctrl + ลูกกลิ้งเมาส์', 'Ctrl + plus / minus': 'Ctrl + บวก / ลบ', 'Page Up / Page Down': 'Page Up / Page Down', 'Home / End': 'Home / End', 'Full screen ': 'เต็มจอ',
   'Reading aloud. Press Read aloud again to stop.': 'กำลังอ่านออกเสียง กดอ่านออกเสียงอีกครั้งเพื่อหยุด', 'Stopped reading': 'หยุดอ่านแล้ว', 'This computer cannot read aloud': 'เครื่องนี้อ่านออกเสียงไม่ได้', 'No Thai voice is installed. Add one in Windows Settings > Time and language > Speech.': 'ยังไม่ได้ติดตั้งเสียงภาษาไทย เพิ่มได้ที่ การตั้งค่า Windows > เวลาและภาษา > คำพูด',
   // secure: clean, flatten
@@ -146,10 +146,14 @@ export const TH = {
   'Saved ': 'บันทึกแล้ว ', 'Export failed: ': 'ส่งออกไม่สำเร็จ: ', 'Save failed: ': 'บันทึกไม่สำเร็จ: ', 'Failed: ': 'ไม่สำเร็จ: ', 'OCR failed: ': 'อ่านข้อความไม่สำเร็จ: ', 'Crop failed: ': 'ตัดขอบไม่สำเร็จ: ', 'Resize failed: ': 'เปลี่ยนขนาดไม่สำเร็จ: ', 'Split failed: ': 'แยกไฟล์ไม่สำเร็จ: ', 'Signing failed: ': 'เซ็นไม่สำเร็จ: ', 'Compress failed: ': 'บีบอัดไม่สำเร็จ: ', 'Word export failed: ': 'ส่งออก Word ไม่สำเร็จ: ', 'Archive copy failed: ': 'สร้างสำเนาเก็บถาวรไม่สำเร็จ: ', 'Form fill failed: ': 'กรอกฟอร์มไม่สำเร็จ: ',
   'Cannot open: ': 'เปิดไม่ได้: ', 'Cannot compare: ': 'เปรียบเทียบไม่ได้: ', 'Search': 'ค้นหา', 'Folder ': 'โฟลเดอร์',
   'Nothing was made. ': 'ไม่ได้สร้างอะไรเลย ', 'Could not read: ': 'อ่านไม่ได้: ',
+  // Google-style layout (2026-11)
+  'Details': 'รายละเอียด', 'Hide panel': 'ซ่อนแผง', 'What would you like to do with a PDF?': 'อยากทำอะไรกับ PDF ดี',
 };
 // sentences that carry numbers or names
 const pl = (n, w) => w;
 export const RULES = [
+  [/^Saved (.+?)\. These form fields could not be written: (.+)$/, (a, b) => `บันทึก ${a} แล้ว แต่เขียนค่าลงในช่องฟอร์มเหล่านี้ไม่ได้: ${b}`],
+  [/^Form filled\. These form fields could not be written: (.+)$/, (a) => `กรอกฟอร์มแล้ว แต่เขียนค่าลงในช่องฟอร์มเหล่านี้ไม่ได้: ${a}`],
   [/^(\d+) sideways or upside-down pieces of text were not checked\. Look at the pages yourself\.$/, (a) => `ข้อความที่เอียงหรือกลับหัว ${a} ส่วนไม่ได้ถูกตรวจ โปรดดูหน้าด้วยตัวเอง`],
   [/^Page (\d+) of (\d+)$/, (a, b) => `หน้า ${a} จาก ${b}`],
   [/^Page (\d+)$/, (a) => `หน้า ${a}`],

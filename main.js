@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const TITLE = 'PDFout';
 const granted = new Map(); // opaque id -> absolute path the user picked in a dialog
 let win = null;
+let uiLang = 'en'; // the page tells us its language so native prompts match it
 
 function grant(p) {
   const id = crypto.randomBytes(8).toString('hex');
@@ -35,6 +36,17 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // the page blocks unload while it has unsaved changes; ask instead of silently refusing to close
+  win.webContents.on('will-prevent-unload', (e) => {
+    const th = uiLang === 'th';
+    const r = dialog.showMessageBoxSync(win, {
+      type: 'question', title: TITLE, noLink: true, defaultId: 1, cancelId: 1,
+      buttons: th ? ['ปิดโดยไม่บันทึก', 'ยกเลิก'] : ['Close without saving', 'Cancel'],
+      message: th ? 'เอกสารนี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก' : 'This document has unsaved changes.',
+      detail: th ? 'ถ้าปิดตอนนี้ การเปลี่ยนแปลงจะหายไป' : 'If you close now, your changes will be lost.',
+    });
+    if (r === 0) e.preventDefault();
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.on('closed', () => { win = null; });
 }
@@ -74,6 +86,23 @@ ipcMain.handle('file:open', async (_e, opts = {}) => {
   return out;
 });
 
+// write through a temporary file next to the target and swap it in, so a failed save never leaves half a file;
+// errors come back as one plain sentence (the page shows it as is)
+function writeSafe(p, data) {
+  const tmp = p + '.pdfout-' + process.pid + '.tmp';
+  try { fs.writeFileSync(tmp, Buffer.from(data)); fs.renameSync(tmp, p); }
+  catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    const th = uiLang === 'th', n = path.basename(p), c = e && e.code;
+    let m;
+    if (c === 'EPERM' || c === 'EACCES' || c === 'EBUSY') m = th ? `บันทึก "${n}" ไม่ได้ ไฟล์นี้เป็นแบบอ่านอย่างเดียวหรือเปิดอยู่ในโปรแกรมอื่น ลองตั้งชื่อใหม่หรือปิดไฟล์นั้นก่อน` : `Cannot save "${n}": the file is read-only or open in another program. Choose another name, or close it there first.`;
+    else if (c === 'ENOSPC') m = th ? `บันทึก "${n}" ไม่ได้ พื้นที่ดิสก์เต็ม` : `Cannot save "${n}": the disk is full.`;
+    else if (c === 'ENAMETOOLONG' || c === 'ENOENT') m = th ? `บันทึก "${n}" ไม่ได้ ชื่อหรือที่อยู่ของไฟล์ยาวเกินไป หรือไม่มีโฟลเดอร์นี้` : `Cannot save "${n}": the name or folder path is too long, or the folder does not exist.`;
+    else m = (th ? `บันทึก "${n}" ไม่ได้: ` : `Cannot save "${n}": `) + ((e && e.message) || e);
+    throw new Error(m);
+  }
+}
+
 function safeName(n) {
   const t = String(n || 'untitled').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^[ .]+|[ .]+$/g, '');
   return /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(t) || !t ? '_' + t : t;
@@ -84,7 +113,7 @@ ipcMain.handle('file:save', async (_e, opts = {}) => {
     defaultPath: safeName(opts.name), filters: filters(opts.filters),
   });
   if (r.canceled || !r.filePath) return null;
-  if (opts.data) fs.writeFileSync(r.filePath, Buffer.from(opts.data));
+  if (opts.data) writeSafe(r.filePath, opts.data);
   return { id: grant(r.filePath), name: path.basename(r.filePath) };
 });
 
@@ -93,7 +122,7 @@ ipcMain.handle('file:saveSeq', async (_e, opts = {}) => {
   const r = await dialog.showSaveDialog(win, { defaultPath: safeName(opts.name || 'page.png'), filters: [{ name: 'PNG image', extensions: ['png'] }] });
   if (r.canceled || !r.filePath || !items.length) return 0;
   const base = r.filePath.replace(/\.[^.\\/]+$/, '');
-  items.forEach((b, i) => fs.writeFileSync(`${base}-${i + 1}.png`, Buffer.from(b)));
+  items.forEach((b, i) => writeSafe(`${base}-${i + 1}.png`, b));
   return items.length;
 });
 
@@ -107,7 +136,7 @@ ipcMain.handle('file:saveMany', async (_e, opts = {}) => {
     let nm = safeName(it.name), full = path.join(dir, nm), k = 2;
     const ext = path.extname(nm), stem = nm.slice(0, nm.length - ext.length);
     while (fs.existsSync(full)) full = path.join(dir, `${stem} (${k++})${ext}`);
-    fs.writeFileSync(full, Buffer.from(it.data)); count++;
+    writeSafe(full, it.data); count++;
   }
   return { dir: path.basename(dir), count };
 });
@@ -130,13 +159,21 @@ ipcMain.handle('file:openFolder', async (_e, opts = {}) => {
 });
 
 ipcMain.handle('file:write', async (_e, id, data) => {
-  fs.writeFileSync(pathOf(id), Buffer.from(data));
+  writeSafe(pathOf(id), data);
   return true;
 });
 
 ipcMain.handle('file:read', async (_e, id) => fs.readFileSync(pathOf(id)));
 
+// files named on the command line ("Open with" in Explorer): handed to the page once, at start
+let launchPaths = process.argv.slice(app.isPackaged ? 1 : 2).filter((a) => /\.(pdf|png|jpe?g)$/i.test(a)).map((a) => path.resolve(a)).filter((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+ipcMain.handle('app:launchFiles', () => {
+  const ps = launchPaths; launchPaths = []; const out = [];
+  for (const p of ps) { try { out.push(readItem(p)); recentAdd(p); } catch {} }
+  return out;
+});
 ipcMain.handle('app:info', () => ({ name: TITLE, version: app.getVersion() }));
+ipcMain.on('app:lang', (_e, l) => { uiLang = l === 'th' ? 'th' : 'en'; });
 
 
 

@@ -2,7 +2,7 @@ import * as pdfjs from './vendor/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 import { tr, getLang, setLang } from './i18n.js';
 import { initExtra } from './extra.js';
-const { PDFDocument, rgb, degrees, StandardFonts } = window.PDFLib;
+const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier, PDFNull, PDFString, PDFStream, PDFPage } = window.PDFLib;
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -21,13 +21,16 @@ const svgNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs = {}) => { const e = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const uid = () => Math.random().toString(36).slice(2, 10);
-const toast = (msg) => { const t = h('div', { class: 'toast', text: String(msg) }); document.body.append(t); setTimeout(() => t.remove(), 2600); };
+// errors from the main process arrive as "Error invoking remote method 'x': Error: <message>": show only the message
+const cleanErr = (s) => String(s).replace(/Error invoking remote method '[^']*': (?:\w*Error: )?/g, '');
+const toast = (msg) => { const s = cleanErr(msg); const t = h('div', { class: 'toast', text: s }); document.body.append(t); setTimeout(() => t.remove(), Math.min(9000, Math.max(2600, s.length * 55))); };
 
 // ---------- state ----------
 const sources = new Map();          // id -> {name, bytes, pdf}
 let pages = [];                     // {id, src, index, rot, annots[], w, h, r0}
 let sel = new Set();                // selected page ids (thumbnails)
 let curPage = 0;
+let rightSrc = null;                // the file whose form fields the right panel shows
 let zoom = 1.2;
 let tool = 'select';
 let color = '#e6c84a';
@@ -53,16 +56,35 @@ const left = h('div', { class: 'sidebar' });
 const stage = h('div', { class: 'stage' });
 const right = h('div', { class: 'sidebar right' });
 const status = h('div', { class: 'status' });
-const ribbon = h('div', { class: 'ribbon' });
-const head = h('div', { class: 'head' }, toolbar, ribbon);
-app.append(head, h('div', { class: 'main' }, left, h('div', { style: 'flex:1;min-width:0;display:flex' }, stage), right), status);
+const ribbon = h('div', { class: 'ribbon', role: 'toolbar', 'aria-label': 'Tools' });
+const modebar = h('div', { class: 'modebar' });
+// order matters: the floating tool bar comes before the panels and the home screen comes last
+app.append(toolbar, modebar, ribbon, h('div', { class: 'main' }, left, h('div', { class: 'center' }, stage), right), status);
 stage.style.flex = '1';
 stage.style.overflow = 'auto';
+
+// Material outline icons (24px grid, filled paths) for the controls the Lookout kit has no icon for
+const MI = {
+  search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  minus: 'M19 13H5v-2h14v2z',
+  plus: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  fit: 'M17 4h3c1.1 0 2 .9 2 2v2h-2V6h-3V4zM4 8V6h3V4H4c-1.1 0-2 .9-2 2v2h2zm16 8v2h-3v2h3c1.1 0 2-.9 2-2v-2h-2zM7 18H4v-2H2v2c0 1.1.9 2 2 2h3v-2zM18 8H6v8h12V8z',
+  left: 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+  right: 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  starO: 'M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
+  history: 'M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  folder: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z',
+  newdoc: 'M13 11h-2v3H8v2h3v3h2v-3h3v-2h-3zm1-9H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',
+  doc: 'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',
+};
+const mi = (name, size = 20) => { const s = sv('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'currentColor', class: 'ms', 'aria-hidden': 'true', focusable: 'false' }); s.append(sv('path', { d: MI[name] })); return s; };
+const vh = (t) => { const e = h('span', { class: 'vh' }); e.textContent = t; return e; };   // plain text kept for text lookups; aria-label names the control
 
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
 const bHome = btn('Home', () => {
   if (pages.length && stamp() !== savedSnap && !confirm(tr('Close this document without saving?'))) return;
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; leftMode = 'pages'; fullRender();
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; protectOpts = null; leftMode = 'pages'; fullRender();
 });
 const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
@@ -75,18 +97,38 @@ const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
   onclick: () => { if (ribbonTab === k) ribbonOpen = !ribbonOpen; else { ribbonTab = k; ribbonOpen = true; } drawRibbon(); } }))));
 const bLang = h('button', { class: 'btn minor', title: 'Language', onclick: () => { setLang(getLang() === 'th' ? 'en' : 'th'); retranslate(); } });
-const langLabel = () => { bLang.textContent = getLang() === 'th' ? 'EN' : 'ไทย'; bLang.dataset.k = 'Language'; };
+const langLabel = () => { bLang.textContent = getLang() === 'th' ? 'EN' : 'ไทย'; bLang.dataset.k = 'Language'; bLang.title = tr('Language'); bLang.setAttribute('aria-label', tr('Language') + ': ' + bLang.textContent); };
 langLabel();
-toolbar.append(bHome, h('span', { class: 'sep' }), tabBar, h('span', { class: 'grow' }), bUndo, bRedo, h('span', { class: 'sep' }), search, bLang);
+// top app bar: home, brand, file name, search, then undo/redo, language and the two main actions
+const bOpen = btn('Open', () => openFiles(false), 'primary tonal');
+const bSave = btn('Save as', () => save(), 'primary');
+const docName = h('div', { class: 'docname', role: 'status' });
+const brandEl = h('div', { class: 'brand' }, h('img', { src: 'brand.svg', alt: '' }), h('span', { text: 'PDFout' }));
+const sbox = h('label', { class: 'sbox' }, mi('search'), search);
+search.style.width = '';
+toolbar.append(bHome, brandEl, docName, h('span', { class: 'grow' }), sbox, h('div', { class: 'tend' }, bUndo, bRedo, bLang, bOpen, bSave));
+// mode bar: the tool sets as chips, and a quick zoom control on the right
+const zb = (key, icon, fn) => h('button', { class: 'zbtn', type: 'button', title: key, 'aria-label': key, onclick: fn }, mi(icon), vh({ 'Zoom out': '-', 'Zoom in': '+', 'Fit to width': 'Fit' }[key]));
+const zOut = zb('Zoom out', 'minus', () => setZoom(zoom / 1.15));
+const zPct = h('span', { class: 'zpct', 'aria-live': 'polite' });
+const zIn = zb('Zoom in', 'plus', () => setZoom(zoom * 1.15));
+const zFit = zb('Fit to width', 'fit', () => fitWidth());
+const zoomBar = h('div', { class: 'zoombar', role: 'group', 'aria-label': 'Zoom' }, zOut, zPct, zIn, zFit);
+modebar.append(tabBar, zoomBar);
 function retranslate() {
-  const set = (el, key) => { if (!el) return; el.dataset.k = key; el.textContent = tr(key); };
-  set(bHome, 'Home'); set(bUndo, 'Undo'); set(bRedo, 'Redo');
+  const set = (el, key) => { if (!el) return; el.dataset.k = key; el.textContent = tr(key); el.title = tr(key); };
+  set(bHome, 'Home'); set(bUndo, 'Undo'); set(bRedo, 'Redo'); set(bOpen, 'Open'); set(bSave, 'Save as');
   TABS.forEach(([k, n]) => set(tabEls[k], n));
   search.placeholder = tr('Search text'); search.setAttribute('aria-label', tr('Search text'));
+  for (const [b, k] of [[zOut, 'Zoom out'], [zIn, 'Zoom in'], [zFit, 'Fit to width']]) { b.title = tr(k); b.setAttribute('aria-label', tr(k)); }
+  zoomBar.setAttribute('aria-label', tr('Zoom')); ribbon.setAttribute('aria-label', tr('Tools'));
   document.documentElement.lang = getLang();
   langLabel(); drawRibbon(); fullRender();
 }
-const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true; return b; };
+const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true;
+  const zi = { '-': 'minus', '+': 'plus' }[label]; // the kit has no icon for these labels; give them Material ones
+  if (zi) { const s = mi(zi); s.classList.add('ic'); s.dataset.for = label; b.prepend(s); b.setAttribute('aria-label', tr(o.tip)); }
+  return b; };
 const rg = (...kids) => h('div', { class: 'rgroup' }, ...kids);
 function drawRibbon() {
   const none = !pages.length;
@@ -119,7 +161,20 @@ function drawRibbon() {
     view: [zoomG, rg(rb('Fit page', () => X.fitPage && X.fitPage(), { dis: none }), rb('Dark pages', () => X.darkPages && X.darkPages(), { dis: none, on: X.isDark && X.isDark(), tip: 'Invert page colours for night reading' }), rb('Full screen', () => X.fullscreen && X.fullscreen(), { dis: none }), rb('Read aloud', () => X.readAloud && X.readAloud(), { dis: none, tip: 'Hear the page read out by this computer' }), rb('Shortcuts', () => X.shortcuts && X.shortcuts()))],
   };
   ribbon.append(...groups[ribbonTab].flatMap((g, i) => (i ? [h('span', { class: 'rsep' }), g] : [g])));
+  placeDock();
 }
+// the tool bar floats over the bottom of the document; keep it centred on the page area and leave room to scroll past it
+function placeDock() {
+  for (const b of [zOut, zIn, zFit]) b.disabled = !pages.length;
+  const r = stage.getBoundingClientRect();
+  if (!ribbonOpen || !r.width) { stage.style.paddingBottom = ''; return; }
+  ribbon.style.left = Math.round(r.left + r.width / 2) + 'px';
+  ribbon.style.maxWidth = Math.max(200, Math.round(r.width - 24)) + 'px';
+  ribbon.style.bottom = Math.max(8, Math.round(window.innerHeight - r.bottom + 12)) + 'px';
+  stage.style.paddingBottom = (ribbon.offsetHeight + 28) + 'px';
+}
+window.addEventListener('resize', () => placeDock());
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => placeDock()); ro.observe(stage, { box: 'border-box' }); }
 function refreshSwatches() { swatchBox.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === color)); }
 refreshSwatches();
 function setTool(t) {
@@ -149,8 +204,9 @@ const CATS = [
 const IC = (d) => { const s = sv('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); s.innerHTML = d; return s; };
 async function openThen(fn) { await openFiles(false); if (pages.length && fn) setTimeout(fn, 60); }
 async function createBlank() {
+  if (isDirty() && !confirm(tr('Close this document without saving?'))) return;
   const d = await PDFDocument.create(); d.addPage([595.28, 841.89]);
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = [];
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = []; protectOpts = null;
   const sid = await addSource('Untitled.pdf', new Uint8Array(await d.save()));
   pages.push(...await pagesOf(sid)); sel.clear(); curPage = 0; selAnn = null; meta = { title: '', author: '' };
   setTimeout(() => { savedSnap = stamp(); }, 0); fullRender();
@@ -188,15 +244,17 @@ const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ma
 const fmtDate = (t) => { const d = new Date(t); return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
 async function renderHome() {
   home.textContent = '';
-  const nav = h('div', { class: 'home-nav' },
+  const nb = (cls, icon, key, fn) => h('button', { class: cls, type: 'button', onclick: fn }, mi(icon, 22), h('span', { class: 'hl', text: key }));
+  const tabs = [['recent', 'Recent files', 'history'], ['starred', 'Starred files', 'starO']];
+  const nav = h('nav', { class: 'home-nav', 'aria-label': 'PDFout' },
     h('div', { class: 'home-brand' }, h('img', { src: 'brand.svg', alt: '' }), h('span', { text: 'PDFout' })),
-    btn('Open PDF', () => openFiles(false), 'primary big'),
-    btn('Create PDF', () => createBlank(), 'big outline'),
-    h('div', { class: 'home-links' },
-      ...[['recent', 'Recent files'], ['starred', 'Starred files']].map(([k, n]) => h('button', { class: 'home-link' + (homeTab === k ? ' on' : ''), text: n, onclick: () => { homeTab = k; renderHome(); } }))),
-    h('div', { class: 'home-note', text: 'Everything stays on this computer. Nothing is uploaded.' }));
+    nb('hnew', 'folder', 'Open PDF', () => openFiles(false)),
+    nb('hnew alt', 'newdoc', 'Create PDF', () => createBlank()),
+    h('div', { class: 'home-links' }, ...tabs.map(([k, n, ic]) => { const b = nb('htab home-link' + (homeTab === k ? ' on' : ''), ic, n, () => { homeTab = k; renderHome(); }); b.title = tr(n); if (homeTab === k) b.setAttribute('aria-current', 'page'); return b; })));
+  nav.querySelectorAll('.hnew').forEach((b) => { b.title = b.textContent; });
   const cat = CATS.find((x) => x[0] === homeCat) || CATS[0], shown = cat[2].map((n) => QUICK.find((q) => q[0] === n)).filter(Boolean);
-  const chips = h('div', { class: 'chips' }, ...CATS.map(([k, n]) => h('button', { class: 'chip' + (k === homeCat ? ' on' : ''), text: n, onclick: () => { homeCat = k; renderHome(); } })), h('button', { class: 'chip' + (homeCat === 'all' ? ' on' : ''), text: 'All', onclick: () => { homeCat = 'all'; renderHome(); } }));
+  const chip = (k, n) => h('button', { class: 'chip' + (k === homeCat ? ' on' : ''), 'aria-pressed': String(k === homeCat), text: n, onclick: () => { homeCat = k; renderHome(); } });
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Quick tools' }, ...CATS.map(([k, n]) => chip(k, n)), chip('all', 'All'));
   const list_ = homeCat === 'all' ? QUICK : shown;
   const quick = h('div', {}, chips, h('div', { class: 'quick' }, ...list_.map(([t, d, ic, fn]) => h('button', { class: 'qcard', onclick: fn }, IC(ic), h('div', {}, h('b', { text: t }), h('span', { text: d }))))));
   let list = [];
@@ -205,14 +263,15 @@ async function renderHome() {
   const body = list.length ? h('table', { class: 'grid recent' },
     h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: 'Name' }), h('th', { text: 'Folder' }), h('th', { text: 'Size' }))),
     h('tbody', {}, list.map((x) => h('tr', { onclick: async () => { try { await openFiles(false, [await window.host.recentOpen(x.id)]); } catch (e) { toast('Cannot open: ' + (e.message || e)); } } },
-      h('td', {}, h('button', { class: 'star' + (x.star ? ' on' : ''), title: 'Star', text: x.star ? '\u2605' : '\u2606', onclick: async (e) => { e.stopPropagation(); await window.host.recentStar(x.id); renderHome(); } })),
-      h('td', {}, h('b', { text: x.name }), h('div', { class: 'muted', text: fmtDate(x.mtime) })),
+      h('td', {}, h('button', { class: 'star' + (x.star ? ' on' : ''), title: 'Star', 'aria-label': 'Star', 'aria-pressed': String(!!x.star), onclick: async (e) => { e.stopPropagation(); await window.host.recentStar(x.id); renderHome(); } }, mi(x.star ? 'star' : 'starO'))),
+      h('td', {}, h('button', { class: 'rname', type: 'button', onclick: (e) => { e.stopPropagation(); e.currentTarget.closest('tr').click(); } }, h('b', { text: x.name })), h('div', { class: 'muted', text: fmtDate(x.mtime) })),
       h('td', { class: 'muted', text: x.dir }), h('td', { class: 'muted', text: fmtSize(x.size) })))))
-    : h('div', { class: 'home-empty' }, h('b', { text: homeTab === 'starred' ? 'No starred files yet' : 'No recent files yet' }), h('span', { text: 'Files you open will appear here. Click the star to keep one handy.' }));
-  home.append(nav, h('div', { class: 'home-main' },
-    h('h2', { text: 'Quick tools' }), quick,
+    : h('div', { class: 'home-empty' }, mi('doc', 40), h('b', { text: homeTab === 'starred' ? 'No starred files yet' : 'No recent files yet' }), h('span', { text: 'Files you open will appear here. Click the star to keep one handy.' }));
+  home.append(nav, h('main', { class: 'home-main' }, h('div', { class: 'home-in' },
+    h('div', { class: 'home-hero' }, h('h1', { text: 'What would you like to do with a PDF?' }), h('p', { class: 'hlead', text: 'Everything stays on this computer. Nothing is uploaded.' })),
     h('div', { class: 'home-head' }, h('h2', { text: homeTab === 'starred' ? 'Starred files' : 'Recent files' }), list.length && homeTab === 'recent' ? btn('Clear list', async () => { await window.host.recentClear(); renderHome(); }) : null),
-    body));
+    body,
+    h('div', { class: 'home-head' }, h('h2', { text: 'Quick tools' })), quick)));
 }
 
 // ---------- page model ----------
@@ -264,9 +323,15 @@ async function addSource(name, bytes) {
       const t = f.constructor.name;
       // the bundled pdf-lib is minified, so class names are unreliable: detect the field type by what it can do
       const kind = typeof f.setText === 'function' ? 'text' : typeof f.check === 'function' ? 'check' : typeof f.isOffToggleable === 'function' ? 'radio' : (typeof f.isEditable === 'function' || typeof f.isMultiselect === 'function') ? 'choice' : (/TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : null);
-      return kind ? { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] } : null;
+      if (!kind) return null;
+      // the value already in the file, so the panel shows it and Save as keeps it
+      let v;
+      try { v = kind === 'text' ? (f.getText() || '') : kind === 'check' ? f.isChecked() : [].concat(f.getSelected() || [])[0] || ''; } catch { v = kind === 'check' ? false : ''; }
+      ent.vals[f.getName()] = v;
+      return { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] };
     }).filter(Boolean);
   } catch {}
+  ent.vals0 = { ...ent.vals };
   return id;
 }
 async function pagesOf(srcId) {
@@ -317,17 +382,23 @@ function parseFormData(name, bytes) {
   }
   return out;
 }
+// fills the files the pages actually use (after Combine, Undo or a page tool, sources can hold files no page shows)
 function applyFormData(map) {
-  const ent = [...sources.values()][0]; if (!ent) return 0;
+  const live = [...new Set(pages.map((p) => p.src).filter(Boolean))].map((id) => sources.get(id)).filter((e) => e && e.fields);
   let n = 0;
   for (const [k, v] of Object.entries(map)) {
-    const f = ent.fields.find((x) => x.name === k) || ent.fields.find((x) => k.endsWith('.' + x.name) || x.name.endsWith('.' + k));
-    if (!f) continue;
-    ent.vals[f.name] = f.kind === 'check' ? /^(yes|on|true|1)$/i.test(v) : v; n++;
+    let hit = false;
+    for (const ent of live) {
+      const f = ent.fields.find((x) => x.name === k) || ent.fields.find((x) => k.endsWith('.' + x.name) || x.name.endsWith('.' + k));
+      if (!f) continue;
+      ent.vals[f.name] = f.kind === 'check' ? /^(yes|on|true|1)$/i.test(v) : v; hit = true;
+    }
+    if (hit) n++;
   }
   return n;
 }
-async function loadFiles(files, merge) {
+// asked: the caller already asked about unsaved work
+async function loadFiles(files, merge, asked) {
   if (!files || !files.length) return;
   const forms = files.filter((f) => FORM_RE.test(f.name)), docs = files.filter((f) => !FORM_RE.test(f.name));
   if (!docs.length) {
@@ -335,18 +406,26 @@ async function loadFiles(files, merge) {
     let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data)));
     toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); return;
   }
-  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = docs[0].name.replace(IMG_RE, '.pdf'); lastSave = null; outline = []; }
+  // replacing the open document: ask first when it has unsaved changes
+  if (!merge && !asked && isDirty() && !confirm(tr('Open this file and close the current one without saving?'))) return;
+  // load into new sources first; the open document is only replaced once at least one file opened
+  const before = new Set(sources.keys()), added = []; let firstName = '';
   for (const f of docs) {
     try {
       let bytes = toBytes(f.data);
       if (IMG_RE.test(f.name)) bytes = await imageToPdf(bytes, /\.jpe?g$/i.test(f.name));
       const sid = await addSource(f.name.replace(IMG_RE, '.pdf'), bytes);
-      pages.push(...await pagesOf(sid));
+      added.push(...await pagesOf(sid)); if (!firstName) firstName = f.name.replace(IMG_RE, '.pdf');
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
+  if (!added.length) { for (const k of [...sources.keys()]) if (!before.has(k)) sources.delete(k); return; }
+  if (merge) { commit(); pages.push(...added); }
+  else { for (const k of before) sources.delete(k); pages = added; undoStack = []; redoStack = []; fileName = firstName; lastSave = null; outline = []; protectOpts = null; }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
-  sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = stamp(); }, 0);
-  for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
+  // form data opened with the PDF is a change to the file: fill it in after the saved state is taken
+  const fillForms = () => { let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data))); if (forms.length) { toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); } };
+  sel.clear(); curPage = 0; selAnn = null;
+  if (!merge) setTimeout(() => { savedSnap = stamp(); fillForms(); }, 0); else fillForms();
   fullRender();
 }
 async function openFiles(merge, preset) {
@@ -364,7 +443,11 @@ const snapReplacer = (k, v) => {
 };
 const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
-const stamp = () => snapshot() + JSON.stringify([outline, meta]);   // what counts as unsaved work
+// what counts as unsaved work (pages, bookmarks, properties, form values, password).
+// Only the form values of files that pages still use: a file added by Combine or Fill form into page stays
+// in sources after Undo, and must not make an undone document look changed.
+const stamp = () => snapshot() + JSON.stringify([outline, meta, [...new Set(pages.map((p) => p.src).filter(Boolean))].map((id) => (sources.get(id) || {}).vals), protectOpts]);
+const isDirty = () => pages.length > 0 && stamp() !== savedSnap;
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
@@ -395,6 +478,7 @@ function renderVisible() {
 }
 function fullRender() {
   document.body.classList.toggle('is-home', !pages.length);
+  curPage = Math.max(0, Math.min(curPage, pages.length - 1));   // pages may have been deleted or undone
   if (!pages.length) renderHome();
   updateButtons();
   renderThumbs(); renderStage(); renderRight(); renderStatus();
@@ -419,11 +503,13 @@ function unrender(el) { el._rendered = false; el._task?.cancel?.(); el.textConte
 async function renderPage(el, p) {
   if (el._rendered) return;
   el._rendered = true;
-  const src = sources.get(p.src); if (!src) return;
+  const src = sources.get(p.src);
+  if (!src) { el.textContent = ''; el.append(makeOverlay(p)); return; }   // a page added with Blank: nothing to draw, but it still takes marks
   const pg = await src.pdf.getPage(p.index + 1);
   const vp = pg.getViewport({ scale: zoom, rotation: (pg.rotate + p.rot) % 360 });
-  const dpr = window.devicePixelRatio || 1;
-  const cv = h('canvas'); cv.width = Math.floor(vp.width * dpr); cv.height = Math.floor(vp.height * dpr);
+  // pixels per CSS pixel; capped so a very large page or zoom never asks for a canvas the browser cannot make (it would stay blank)
+  const dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(16e6 / (vp.width * vp.height)), 16000 / Math.max(vp.width, vp.height));
+  const cv = h('canvas'); cv.width = Math.max(1, Math.floor(vp.width * dpr)); cv.height = Math.max(1, Math.floor(vp.height * dpr));
   cv.style.width = vp.width + 'px'; cv.style.height = vp.height + 'px';
   el.style.width = vp.width + 'px'; el.style.height = vp.height + 'px';
   el.textContent = ''; el.append(cv);
@@ -437,15 +523,24 @@ async function renderPage(el, p) {
   el.append(makeOverlay(p));
 }
 let leftMode = 'pages';
+// panel header: a title and a button that hides the panel (the grip beside it, now focused, brings it back)
+function panelHead(side, title) {
+  const b = h('button', { class: 'pbtn', type: 'button', title: 'Hide panel', 'aria-label': 'Hide panel', onclick: () => {
+    const wb = document.querySelector('.wbs .wb[data-id=' + side + ']'); if (wb) wb.click();
+    requestAnimationFrame(() => requestAnimationFrame(() => { const g = document.querySelector('.grip[data-side=' + side + ']'); if (g) g.focus(); }));
+  } }, mi(side === 'left' ? 'left' : 'right'));
+  return h('div', { class: 'phead' }, h('h2', { class: 'ptitle', text: title }), b);
+}
 function renderThumbs() {
   left.textContent = '';
   thumbEls.clear();
-  left.append(h('div', { class: 'ptools modes' }, h('button', { class: 'btn' + (leftMode === 'pages' ? ' on' : ''), text: 'Pages', onclick: () => { leftMode = 'pages'; renderThumbs(); } }), h('button', { class: 'btn' + (leftMode === 'marks' ? ' on' : ''), text: 'Bookmarks', onclick: () => { leftMode = 'marks'; renderThumbs(); } })));
+  left.append(panelHead('left', leftMode === 'marks' ? 'Bookmarks' : 'Pages'));
+  left.append(h('div', { class: 'ptools modes', role: 'group' }, h('button', { class: 'btn' + (leftMode === 'pages' ? ' on' : ''), 'aria-pressed': String(leftMode === 'pages'), text: 'Pages', onclick: () => { leftMode = 'pages'; renderThumbs(); } }), h('button', { class: 'btn' + (leftMode === 'marks' ? ' on' : ''), 'aria-pressed': String(leftMode === 'marks'), text: 'Bookmarks', onclick: () => { leftMode = 'marks'; renderThumbs(); } })));
   if (leftMode === 'marks' && X.marksPanel) { X.marksPanel(left); return; }
   const tools = h('div', { class: 'ptools' },
     btn('Rotate L', () => pageOp('rotL')), btn('Rotate R', () => pageOp('rotR')), btn('Delete', () => pageOp('del')), btn('Copy', () => pageOp('dup')),
     btn('Up', () => pageOp('up')), btn('Down', () => pageOp('down')), btn('Blank', () => pageOp('blank')), btn('Extract', () => extractSel()));
-  left.append(h('h3', { text: 'Pages' }), tools);
+  left.append(tools);
   pages.forEach((p, i) => {
     const c = h('canvas');
     const t = h('div', { class: 'thumb' + (sel.has(p.id) ? ' sel' : ''), onclick: (e) => thumbClick(e, p, i) }, c, h('span', { text: String(i + 1) }));
@@ -462,7 +557,7 @@ async function drawThumb(c, p) {
   const src = sources.get(p.src); if (!src) return;
   const pg = await src.pdf.getPage(p.index + 1);
   const base = pg.getViewport({ scale: 1, rotation: (pg.rotate + p.rot) % 360 });
-  const s = 140 / base.width; const vp = pg.getViewport({ scale: s, rotation: (pg.rotate + p.rot) % 360 });
+  const s = Math.min(140 / base.width, 600 / base.height); const vp = pg.getViewport({ scale: s, rotation: (pg.rotate + p.rot) % 360 });
   c.width = vp.width; c.height = vp.height;
   try { await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; } catch {}
 }
@@ -471,19 +566,25 @@ function thumbClick(e, p, i) {
   else if (e.shiftKey && sel.size) { const last = pages.findIndex((x) => sel.has(x.id)); const [a, b] = [Math.min(last, i), Math.max(last, i)]; sel = new Set(pages.slice(a, b + 1).map((x) => x.id)); }
   else sel = new Set([p.id]);
   thumbEls.forEach((el, id) => el.classList.toggle('sel', sel.has(id)));
+  // the clicked page becomes the current one even when the document fits on screen and nothing scrolls
+  if (curPage !== i) { curPage = i; renderStatus(); followSource(); }
   scrollToPage(i);
 }
+// the form panel shows the fields of the current page's file: redraw it when that file changes
+function followSource() { const s = (pages[curPage] && pages[curPage].src) || null; if (s !== rightSrc) renderRight(); }
 function scrollToPage(i) { const el = pageEls.get(pages[i]?.id); if (el) stage.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' }); }
 function onScroll() {
   clearTimeout(scrollTimer); scrollTimer = setTimeout(renderVisible, 40);
   const mid = stage.scrollTop + stage.clientHeight / 3;
   let best = 0; pages.forEach((p, i) => { const el = pageEls.get(p.id); if (el && el.offsetTop <= mid) best = i; });
-  if (best !== curPage) { curPage = best; renderStatus(); }
+  if (best !== curPage) { curPage = best; renderStatus(); followSource(); }
 }
 function setZoom(z) { zoom = clamp(z, 0.25, 5); const top = stage.scrollTop / (stage.scrollHeight || 1); renderStage(); stage.scrollTop = top * stage.scrollHeight; renderStatus(); }
 function fitWidth() { if (!pages.length) return; const [bw] = shownSize({ ...pages[curPage], rot: pages[curPage].rot }); setZoom(zoom * (stage.clientWidth - 48) / bw); }
 function renderStatus() {
   status.textContent = '';
+  docName.textContent = fileName || ''; docName.title = fileName || '';
+  zPct.textContent = pages.length ? Math.round(zoom * 100) + '%' : '';
   status.append(h('span', { text: fileName || 'No file' }), h('span', { class: 'grow' }), h('span', { text: pages.length ? `Page ${curPage + 1} of ${pages.length}` : '' }), h('span', { text: Math.round(zoom * 100) + '%' }));
 }
 
@@ -497,9 +598,10 @@ function movePages(ids, targetId, after) {
 function pageOp(op) {
   if (!pages.length) return;
   const ids = sel.size ? sel : new Set([pages[curPage].id]);
+  if (op === 'del' && pages.every((p) => ids.has(p.id))) { toast('A document needs at least one page'); return; }   // refuse before commit() so Redo survives
   commit();
   if (op === 'rotL' || op === 'rotR') pages.forEach((p) => { if (ids.has(p.id)) p.rot = (p.rot + (op === 'rotR' ? 90 : 270)) % 360; });
-  else if (op === 'del') { if (ids.size >= pages.length) { toast('A document needs at least one page'); undoStack.pop(); return; } pages = pages.filter((p) => !ids.has(p.id)); sel.clear(); }
+  else if (op === 'del') { pages = pages.filter((p) => !ids.has(p.id)); sel.clear(); }
   else if (op === 'dup') { const out = []; for (const p of pages) { out.push(p); if (ids.has(p.id)) out.push({ ...JSON.parse(JSON.stringify(p)), id: uid() }); } pages = out; }
   else if (op === 'up') { for (let i = 1; i < pages.length; i++) if (ids.has(pages[i].id) && !ids.has(pages[i - 1].id)) [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]]; }
   else if (op === 'down') { for (let i = pages.length - 2; i >= 0; i--) if (ids.has(pages[i].id) && !ids.has(pages[i + 1].id)) [pages[i + 1], pages[i]] = [pages[i], pages[i + 1]]; }
@@ -783,14 +885,17 @@ function openOcr() {
   const go = btn('Start OCR', async () => {
     if (busy) return; busy = true; ocrStop = false; go.disabled = true;
     const idx = scope.value === 'cur' ? [curPage] : pages.map((_, i) => i);
-    commit(); const done = [];
+    // the undo step is made only when a page really changes, so a scan with no text (or a failed run) adds none
+    const done = []; let changed = false;
     try {
       for (let k = 0; k < idx.length; k++) {
         if (ocrStop) break;
         msg.textContent = `Reading page ${idx[k] + 1} (${k + 1} of ${idx.length})...`;
         bar.firstChild.style.width = Math.round((k / idx.length) * 100) + '%';
         const r = await ocrPage(pages[idx[k]], lang.value, (m) => { if (m.status === 'recognizing text') bar.firstChild.style.width = Math.round(((k + m.progress) / idx.length) * 100) + '%'; });
-        pages[idx[k]].ocr = r; done.push(idx[k]);
+        const pg = pages[idx[k]];
+        if ((r && r.lines.length) || pg.ocr) { if (!changed) { commit(); changed = true; } pg.ocr = r; }
+        done.push(idx[k]);
       }
     } catch (e) { toast('OCR failed: ' + (e.message || e)); }
     busy = false; if (back.isConnected) { back.remove(); } if (done.length) { renderStatus(); showOcrResult(done); }
@@ -1056,8 +1161,9 @@ function markHits(tl, p) {
 
 // ---------- right panel ----------
 async function renderRight() {
+  rightSrc = (pages[curPage] && pages[curPage].src) || null;
   right.textContent = '';
-  right.append(h('h3', { text: 'Document' }));
+  right.append(panelHead('right', 'Details'), h('h3', { text: 'Document' }));
   const t = h('input', { type: 'text', value: meta.title, oninput: () => (meta.title = t.value) });
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));
@@ -1090,22 +1196,18 @@ async function renderRight() {
   right.append(h('h3', { text: 'Privacy' }), h('div', { class: 'muted', text: 'Files are processed on this computer only. Nothing is uploaded.' }));
 }
 async function applyForm(srcId) {
-  const ent = sources.get(srcId);
+  const ent = sources.get(srcId); formFails = [];
   try {
-    const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
-    const form = d.getForm();
-    for (const f of ent.fields) {
-      const v = ent.vals[f.name]; if (v === undefined || v === '') continue;
-      const fld = form.getField(f.name);
-      if (f.kind === 'text') fld.setText(String(v));
-      else if (f.kind === 'check') (v ? fld.check() : fld.uncheck());
-      else fld.select(v);
-    }
-    form.flatten();
-    const bytes = new Uint8Array(await d.save());
-    ent.pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
-    ent.bytes = bytes; ent.fields = []; ent.vals = {};
-    fullRender(); toast('Form filled');
+    const d = (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+    await fillMissingAppearances(d);
+    d.getForm().flatten({ updateFieldAppearances: false });
+    const bytes = new Uint8Array(await d.save({ updateFieldAppearances: false }));
+    const pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
+    // the filled pages come from a new source, so Undo brings the fillable form back
+    const nid = uid(); commit();
+    sources.set(nid, { name: ent.name, bytes, pdf, fields: [], vals: {}, vals0: {} });
+    for (const p of pages) if (p.src === srcId) p.src = nid;
+    fullRender(); toast('Form filled' + failNote());
   } catch (e) { toast('Form fill failed: ' + (e.message || e)); }
 }
 async function pdfToJpegPdf(bytes, q, scale) {
@@ -1177,8 +1279,8 @@ async function exportWord() { if (X.exportWord) return X.exportWord(); }
 
 // ---------- export ----------
 const hex = (c) => { const n = parseInt(c.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
-async function rasterPage(p, list, scale = 2.5) {
-  const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
+async function rasterPage(p, list, scale = 2.5, doc = null) {
+  const pg = await (doc || sources.get(p.src).pdf).getPage(p.index + 1);
   const vp = pg.getViewport({ scale, rotation: pg.rotate });
   const cv = h('canvas'); cv.width = vp.width; cv.height = vp.height;
   const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -1228,27 +1330,174 @@ function addLinksAndOutline(out, list, outPages, linkJobs) {
   c.assign(root, c.obj({ Type: 'Outlines', First: top[0].ref, Last: top[top.length - 1].ref, Count: top.length + top.reduce((s, n) => s + count(n), 0) }));
   out.catalog.set(PDFName.of('Outlines'), root);
 }
+// form values edited in the panel, written into a copy of the source; the fields stay fillable
+// a font that can draw s in a field picture of d: Thai -> Noto Sans Thai, other non-Latin -> Noto Sans, else null (use Helvetica)
+const fieldFonts = (d) => {
+  const fonts = {};
+  return async (s) => {
+    const k = THAI.test(s) ? 'thai' : winAnsi(s) !== s ? 'uni' : null;
+    if (!k) return null;
+    if (!fonts[k]) {
+      d.registerFontkit(window.fontkit);
+      const b = k === 'thai' ? await getThaiBytes() : new Uint8Array(await (await fetch('./vendor/fonts/NotoSans-Regular.ttf')).arrayBuffer());
+      fonts[k] = await d.embedFont(b, { subset: false });
+    }
+    return fonts[k];
+  };
+};
+// Fields whose widgets have no picture (/AP) rely on the viewer to draw the answer (NeedAppearances).
+// Flattening keeps only pictures, so build one for those fields first, with a font that has the characters.
+// Fields that already have a picture keep it.
+async function fillMissingAppearances(d) {
+  const form = d.getForm(), fontFor = fieldFonts(d); let latin = null;
+  const font = async (s) => (await fontFor(s)) || (latin = latin || await d.embedFont(StandardFonts.Helvetica));
+  for (const fld of form.getFields()) {
+    const ws = fld.acroField.getWidgets();
+    if (!ws.length || ws.every((w) => w.dict.get(PDFName.of('AP')))) continue;
+    try {
+      if (fld.getText) fld.updateAppearances(await font(fld.getText() || ''));
+      else if (fld.getSelected) fld.updateAppearances(await font(fld.getSelected().join(' ')));
+      else if (fld.check || fld.select) fld.updateAppearances();
+    } catch (e) { console.warn('form field picture not made', fld.getName(), e); }
+  }
+}
+// names of form fields whose edited value could not be written by the last buildPdf / applyForm
+let formFails = [];
+const failNote = () => (formFails.length ? '. These form fields could not be written: ' + formFails.join(', ') : '');
+async function withFormValues(ent) {
+  const changed = (ent.fields || []).filter((f) => ent.vals[f.name] !== (ent.vals0 || {})[f.name]);
+  if (!changed.length) return null;
+  const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+  const form = d.getForm(); const fonts = {};
+  const fontFor = fieldFonts(d);
+  for (const f of changed) {
+    const v = ent.vals[f.name];
+    try {
+      const fld = form.getField(f.name);
+      if (f.kind === 'text') {
+        const s = String(v == null ? '' : v); fld.setText(s);
+        fld.updateAppearances((await fontFor(s)) || (fonts.latin = fonts.latin || await d.embedFont(StandardFonts.Helvetica)));
+        // a UTF-16 value, so Thai and other non-Latin text reads back correctly in every viewer
+        fld.acroField.dict.set(PDFName.of('V'), PDFHexString.fromText(s));
+      } else if (f.kind === 'check') { if (v) fld.check(); else fld.uncheck(); fld.updateAppearances(); }
+      else {
+        if (v) fld.select(v); else if (fld.clear) fld.clear();
+        if (f.kind === 'radio') fld.updateAppearances();
+        else fld.updateAppearances((await fontFor(String(v || ''))) || (fonts.latin = fonts.latin || await d.embedFont(StandardFonts.Helvetica)));
+      }
+    } catch (e) { console.warn('form value not saved', f.name, e); if (!formFails.includes(f.name)) formFails.push(f.name); }
+  }
+  // only the changed fields get new appearances; the others keep the ones in the file
+  return PDFDocument.load(await d.save({ updateFieldAppearances: false }), { ignoreEncryption: true });
+}
+// copyPages brings the field widgets but not the document's form list: add their fields to the output /AcroForm
+function keepFormFields(out, page, src) {
+  const annots = page.node.Annots(); if (!annots) return;
+  const roots = [];
+  for (let i = 0; i < annots.size(); i++) {
+    const ref = annots.get(i); const a = ref instanceof PDFRef ? out.context.lookup(ref, PDFDict) : null;
+    if (!a || a.get(PDFName.of('Subtype')) !== PDFName.of('Widget')) continue;
+    let top = ref, cur = a;
+    for (let k = 0; k < 32; k++) { const par = cur.get(PDFName.of('Parent')); if (!(par instanceof PDFRef)) break; top = par; cur = out.context.lookup(par, PDFDict); if (!cur) break; }
+    if (cur && cur.get(PDFName.of('T')) && !roots.includes(top)) roots.push(top);
+  }
+  if (!roots.length) return;
+  const af = out.getForm().acroForm, have = af.dict.lookupMaybe(PDFName.of('Fields'), PDFArray);
+  for (const r of roots) if (!have || !have.asArray().includes(r)) af.addField(r);
+  const srcAF = src.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
+  if (srcAF) {
+    const cp = PDFObjectCopier.for(src.context, out.context);
+    // NeedAppearances too: fields without a picture still show their answers in other viewers
+    for (const k of ['DA', 'DR', 'Q', 'NeedAppearances']) { const v = srcAF.get(PDFName.of(k)); if (v && !af.dict.get(PDFName.of(k))) af.dict.set(PDFName.of(k), cp.copy(v)); }
+  }
+}
+// copyPages follows links, link actions, widget /P and field /Kids to other pages of the source and copies those
+// pages too, unused. A copy of a redacted (or removed) page would keep its original content in the file.
+// Each source page carries a private key while it is copied; every copied page that is not in the page tree is
+// pointed back at the tree page made from the same source page (or nothing), and what is left unused is dropped.
+const SRCKEY = PDFName.of('PDFoutSrc');
+// Like out.copyPages(src, [i]) but one copier per output and source file, so a form field with widgets on several
+// pages is copied once (one field, not one same-named copy per page). A page copied a second time (a duplicate)
+// gets a fresh copier so the two copies never share annotations.
+const copiers = new WeakMap();
+async function copyPage(out, src, index) {
+  let m = copiers.get(out); if (!m) copiers.set(out, (m = new Map()));
+  let e = m.get(src); if (!e) { await src.flush(); e = { cp: PDFObjectCopier.for(src.context, out.context), used: new Set() }; m.set(src, e); }
+  const cp = e.used.has(index) ? PDFObjectCopier.for(src.context, out.context) : e.cp; e.used.add(index);
+  const node = cp.copy(src.getPage(index).node);
+  return PDFPage.of(node, out.context.register(node), out);
+}
+function markSource(doc, srcId) { doc.getPages().forEach((pg, i) => pg.node.set(SRCKEY, PDFString.of(srcId + ':' + i))); return doc; }
+// fonts, images and embedded pages are only written into the file on flush; until then the copied page an
+// embedded page reads from is not reachable, and its content would be swept
+async function sweepUnused(out) {
+  await out.flush();
+  const ctx = out.context, seen = new Set(), todo = [ctx.trailerInfo.Root, ctx.trailerInfo.Info];
+  while (todo.length) {
+    let o = todo.pop(); if (!o) continue;
+    if (o instanceof PDFRef) { if (seen.has(o.tag)) continue; seen.add(o.tag); o = ctx.lookup(o); if (!o) continue; }
+    if (o instanceof PDFStream) o = o.dict;
+    if (o instanceof PDFDict) for (const [, v] of o.entries()) todo.push(v);
+    else if (o instanceof PDFArray) todo.push(...o.asArray());
+  }
+  for (const [ref] of ctx.enumerateIndirectObjects()) if (!seen.has(ref.tag)) ctx.delete(ref);
+}
+async function pruneCopies(out, keyMap) {
+  const ctx = out.context, isPage = (o) => o instanceof PDFDict && o.get(PDFName.of('Type')) === PDFName.of('Page');
+  const tree = new Set(out.getPages().map((pg) => pg.ref.tag)), remap = new Map(), annots = new Set();
+  for (const pg of out.getPages()) {
+    pg.node.delete(SRCKEY);
+    const an = pg.node.Annots(); if (an) for (const r of an.asArray()) if (r instanceof PDFRef) annots.add(r.tag);
+  }
+  for (const [ref, o] of ctx.enumerateIndirectObjects()) {
+    if (!isPage(o) || tree.has(ref.tag)) continue;
+    const k = o.get(SRCKEY); remap.set(ref.tag, (k && keyMap.get(k.decodeText())) || PDFNull);
+  }
+  const fix = (v) => (v instanceof PDFRef && remap.has(v.tag) ? remap.get(v.tag) : null);
+  // walks direct objects too: a link's /Dest [page /Fit] and /A << /D [...] >> sit inside the annotation dict
+  const walk = (o0, depth) => {
+    const o = o0 instanceof PDFStream ? o0.dict : o0;
+    if (depth > 64) return;
+    if (o instanceof PDFDict) {
+      for (const [k, v] of o.entries()) { const n = fix(v); if (n) o.set(k, n); else if (!(v instanceof PDFRef)) walk(v, depth + 1); }
+      // a field keeps only the widgets that sit on a page of the saved document
+      const kids = o.get(PDFName.of('Type')) !== PDFName.of('Pages') && o.lookupMaybe(PDFName.of('Kids'), PDFArray);
+      if (kids) for (let i = kids.size() - 1; i >= 0; i--) {
+        const r = kids.get(i), w = r instanceof PDFRef && ctx.lookup(r);
+        if (w instanceof PDFDict && w.get(PDFName.of('Subtype')) === PDFName.of('Widget') && !annots.has(r.tag)) kids.remove(i);
+      }
+    } else if (o instanceof PDFArray) for (let i = 0; i < o.size(); i++) { const v = o.get(i), n = fix(v); if (n) o.set(i, n); else if (!(v instanceof PDFRef)) walk(v, depth + 1); }
+  };
+  for (const [, o] of ctx.enumerateIndirectObjects()) walk(o, 0);
+  await sweepUnused(out);
+}
 async function buildPdf(list, enc, opts) {
+  formFails = [];
   const out = await PDFDocument.create(opts && opts.noMeta ? { updateMetadata: false } : undefined);
   const font = await out.embedFont(StandardFonts.Helvetica);
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
   const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
   if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
-  const cache = new Map(), linkJobs = [], outPages = [];
+  const cache = new Map(), rcache = new Map(), linkJobs = [], outPages = [], keyMap = new Map();
   for (const p of list) {
     let page; let q = p;
     const redacts = p.annots.filter((a) => a.type === 'redact' || a.perm);
     if (!p.src) { page = out.addPage([p.w, p.h]); }
     else if (redacts.length) {
-      const img = await out.embedPng(await rasterPage(p, redacts));
+      // the picture of the page must show the form values typed in the panel too
+      if (!rcache.has(p.src)) { const d = await withFormValues(sources.get(p.src)); const task = d && pdfjs.getDocument({ data: await d.save({ updateFieldAppearances: false }), isEvalSupported: false, enableXfa: false }); rcache.set(p.src, task && { task, pdf: await task.promise }); }
+      const img = await out.embedPng(await rasterPage(p, redacts, 2.5, rcache.get(p.src) && rcache.get(p.src).pdf));
       // the raster is already in displayed orientation: size the page to it and drop the intrinsic rotation
       const [rw, rh] = dispDims(p);
       page = out.addPage([rw, rh]); page.drawImage(img, { x: 0, y: 0, width: rw, height: rh });
       q = { ...p, w: rw, h: rh, r0: 0 };
+      if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
     } else {
-      if (!cache.has(p.src)) cache.set(p.src, await PDFDocument.load(sources.get(p.src).bytes, { ignoreEncryption: true }));
-      [page] = await out.copyPages(cache.get(p.src), [p.index]);
+      if (!cache.has(p.src)) { const ent = sources.get(p.src); cache.set(p.src, markSource((await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true }), p.src)); }
+      page = await copyPage(out, cache.get(p.src), p.index);
       out.addPage(page);
+      if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
+      keepFormFields(out, page, cache.get(p.src));
     }
     const base = page.getRotation().angle;
     const box = p.src && !redacts.length ? page.getCropBox() : { x: 0, y: 0, width: q.w, height: q.h };
@@ -1317,18 +1566,21 @@ async function buildPdf(list, enc, opts) {
     page.setRotation(degrees((base + p.rot) % 360));
     outPages.push({ id: p.id, page });
   }
+  for (const r of rcache.values()) if (r) r.task.destroy();
   addLinksAndOutline(out, list, outPages, linkJobs);
   if (opts && opts.noMeta) { out.setProducer(''); out.setCreator(''); }
   else { out.setProducer('PDFout'); out.setCreator('PDFout'); }
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
   if (meta.subject) out.setSubject(meta.subject); if (meta.keywords) out.setKeywords(String(meta.keywords).split(/[,;]+/).map((k) => k.trim()).filter(Boolean));
-  if (opts && opts.post) await opts.post(out);
+  await pruneCopies(out, keyMap);
+  if (opts && opts.post) { await opts.post(out); await sweepUnused(out); }
   if (enc && (enc.user || enc.owner || !enc.print || !enc.copy || !enc.edit)) {
     const rnd = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,
       permissions: { printing: enc.print ? 'highResolution' : false, copying: !!enc.copy, modifying: !!enc.edit, annotating: !!enc.edit, fillingForms: !!enc.edit, contentAccessibility: true, documentAssembly: !!enc.edit } });
   }
-  return await out.save(opts && opts.save ? opts.save : undefined);
+  // never regenerate appearances of fields copied from the source (that would fail on Thai values and change their look)
+  return await out.save({ updateFieldAppearances: false, ...(opts && opts.save ? opts.save : {}) });
 }
 async function save() {
   if (!pages.length) return;
@@ -1336,8 +1588,9 @@ async function save() {
     const bytes = await buildPdf(pages, protectOpts);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
-    if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name); }
-  } catch (e) { toast('Save failed: ' + (e.message || e)); }
+    // fields that could not be written are not in the file: keep the document marked as changed
+    if (r) { if (!formFails.length) savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name + failNote()); }
+  } catch (e) { const m = cleanErr(e.message || e); toast(/^(Cannot save|บันทึก)/.test(m) ? m : 'Save failed: ' + m); }
 }
 
 let savedSnap = null;
@@ -1350,10 +1603,12 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, copyPage, markSource, pruneCopies, isDirty, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });
 fullRender();
+// a file chosen with "Open with" (or named on the command line) opens straight away
+if (window.host.launchFiles) window.host.launchFiles().then((f) => { if (f && f.length) loadFiles(f); }).catch(() => {});
 
 window.addEventListener('beforeunload', (e) => { if (pages.length && stamp() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });

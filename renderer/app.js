@@ -30,6 +30,7 @@ const sources = new Map();          // id -> {name, bytes, pdf}
 let pages = [];                     // {id, src, index, rot, annots[], w, h, r0}
 let sel = new Set();                // selected page ids (thumbnails)
 let curPage = 0;
+let rightSrc = null;                // the file whose form fields the right panel shows
 let zoom = 1.2;
 let tool = 'select';
 let color = '#e6c84a';
@@ -565,15 +566,17 @@ function thumbClick(e, p, i) {
   else sel = new Set([p.id]);
   thumbEls.forEach((el, id) => el.classList.toggle('sel', sel.has(id)));
   // the clicked page becomes the current one even when the document fits on screen and nothing scrolls
-  if (curPage !== i) { curPage = i; renderStatus(); }
+  if (curPage !== i) { curPage = i; renderStatus(); followSource(); }
   scrollToPage(i);
 }
+// the form panel shows the fields of the current page's file: redraw it when that file changes
+function followSource() { const s = (pages[curPage] && pages[curPage].src) || null; if (s !== rightSrc) renderRight(); }
 function scrollToPage(i) { const el = pageEls.get(pages[i]?.id); if (el) stage.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' }); }
 function onScroll() {
   clearTimeout(scrollTimer); scrollTimer = setTimeout(renderVisible, 40);
   const mid = stage.scrollTop + stage.clientHeight / 3;
   let best = 0; pages.forEach((p, i) => { const el = pageEls.get(p.id); if (el && el.offsetTop <= mid) best = i; });
-  if (best !== curPage) { curPage = best; renderStatus(); }
+  if (best !== curPage) { curPage = best; renderStatus(); followSource(); }
 }
 function setZoom(z) { zoom = clamp(z, 0.25, 5); const top = stage.scrollTop / (stage.scrollHeight || 1); renderStage(); stage.scrollTop = top * stage.scrollHeight; renderStatus(); }
 function fitWidth() { if (!pages.length) return; const [bw] = shownSize({ ...pages[curPage], rot: pages[curPage].rot }); setZoom(zoom * (stage.clientWidth - 48) / bw); }
@@ -1157,6 +1160,7 @@ function markHits(tl, p) {
 
 // ---------- right panel ----------
 async function renderRight() {
+  rightSrc = (pages[curPage] && pages[curPage].src) || null;
   right.textContent = '';
   right.append(panelHead('right', 'Details'), h('h3', { text: 'Document' }));
   const t = h('input', { type: 'text', value: meta.title, oninput: () => (meta.title = t.value) });

@@ -2,7 +2,7 @@ import * as pdfjs from './vendor/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 import { tr, getLang, setLang } from './i18n.js';
 import { initExtra } from './extra.js';
-const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier } = window.PDFLib;
+const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier, PDFNull, PDFString, PDFStream } = window.PDFLib;
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -1399,6 +1399,52 @@ function keepFormFields(out, page, src) {
     for (const k of ['DA', 'DR', 'Q', 'NeedAppearances']) { const v = srcAF.get(PDFName.of(k)); if (v && !af.dict.get(PDFName.of(k))) af.dict.set(PDFName.of(k), cp.copy(v)); }
   }
 }
+// copyPages follows links, link actions, widget /P and field /Kids to other pages of the source and copies those
+// pages too, unused. A copy of a redacted (or removed) page would keep its original content in the file.
+// Each source page carries a private key while it is copied; every copied page that is not in the page tree is
+// pointed back at the tree page made from the same source page (or nothing), and what is left unused is dropped.
+const SRCKEY = PDFName.of('PDFoutSrc');
+function markSource(doc, srcId) { doc.getPages().forEach((pg, i) => pg.node.set(SRCKEY, PDFString.of(srcId + ':' + i))); return doc; }
+function sweepUnused(out) {
+  const ctx = out.context, seen = new Set(), todo = [ctx.trailerInfo.Root, ctx.trailerInfo.Info];
+  while (todo.length) {
+    let o = todo.pop(); if (!o) continue;
+    if (o instanceof PDFRef) { if (seen.has(o.tag)) continue; seen.add(o.tag); o = ctx.lookup(o); if (!o) continue; }
+    if (o instanceof PDFStream) o = o.dict;
+    if (o instanceof PDFDict) for (const [, v] of o.entries()) todo.push(v);
+    else if (o instanceof PDFArray) todo.push(...o.asArray());
+  }
+  for (const [ref] of ctx.enumerateIndirectObjects()) if (!seen.has(ref.tag)) ctx.delete(ref);
+}
+function pruneCopies(out, keyMap) {
+  const ctx = out.context, isPage = (o) => o instanceof PDFDict && o.get(PDFName.of('Type')) === PDFName.of('Page');
+  const tree = new Set(out.getPages().map((pg) => pg.ref.tag)), remap = new Map(), annots = new Set();
+  for (const pg of out.getPages()) {
+    pg.node.delete(SRCKEY);
+    const an = pg.node.Annots(); if (an) for (const r of an.asArray()) if (r instanceof PDFRef) annots.add(r.tag);
+  }
+  for (const [ref, o] of ctx.enumerateIndirectObjects()) {
+    if (!isPage(o) || tree.has(ref.tag)) continue;
+    const k = o.get(SRCKEY); remap.set(ref.tag, (k && keyMap.get(k.decodeText())) || PDFNull);
+  }
+  const fix = (v) => (v instanceof PDFRef && remap.has(v.tag) ? remap.get(v.tag) : null);
+  // walks direct objects too: a link's /Dest [page /Fit] and /A << /D [...] >> sit inside the annotation dict
+  const walk = (o0, depth) => {
+    const o = o0 instanceof PDFStream ? o0.dict : o0;
+    if (depth > 64) return;
+    if (o instanceof PDFDict) {
+      for (const [k, v] of o.entries()) { const n = fix(v); if (n) o.set(k, n); else if (!(v instanceof PDFRef)) walk(v, depth + 1); }
+      // a field keeps only the widgets that sit on a page of the saved document
+      const kids = o.get(PDFName.of('Type')) !== PDFName.of('Pages') && o.lookupMaybe(PDFName.of('Kids'), PDFArray);
+      if (kids) for (let i = kids.size() - 1; i >= 0; i--) {
+        const r = kids.get(i), w = r instanceof PDFRef && ctx.lookup(r);
+        if (w instanceof PDFDict && w.get(PDFName.of('Subtype')) === PDFName.of('Widget') && !annots.has(r.tag)) kids.remove(i);
+      }
+    } else if (o instanceof PDFArray) for (let i = 0; i < o.size(); i++) { const v = o.get(i), n = fix(v); if (n) o.set(i, n); else if (!(v instanceof PDFRef)) walk(v, depth + 1); }
+  };
+  for (const [, o] of ctx.enumerateIndirectObjects()) walk(o, 0);
+  sweepUnused(out);
+}
 async function buildPdf(list, enc, opts) {
   formFails = [];
   const out = await PDFDocument.create(opts && opts.noMeta ? { updateMetadata: false } : undefined);
@@ -1406,7 +1452,7 @@ async function buildPdf(list, enc, opts) {
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
   const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
   if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
-  const cache = new Map(), rcache = new Map(), linkJobs = [], outPages = [];
+  const cache = new Map(), rcache = new Map(), linkJobs = [], outPages = [], keyMap = new Map();
   for (const p of list) {
     let page; let q = p;
     const redacts = p.annots.filter((a) => a.type === 'redact' || a.perm);
@@ -1419,10 +1465,12 @@ async function buildPdf(list, enc, opts) {
       const [rw, rh] = dispDims(p);
       page = out.addPage([rw, rh]); page.drawImage(img, { x: 0, y: 0, width: rw, height: rh });
       q = { ...p, w: rw, h: rh, r0: 0 };
+      if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
     } else {
-      if (!cache.has(p.src)) { const ent = sources.get(p.src); cache.set(p.src, (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true })); }
+      if (!cache.has(p.src)) { const ent = sources.get(p.src); cache.set(p.src, markSource((await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true }), p.src)); }
       [page] = await out.copyPages(cache.get(p.src), [p.index]);
       out.addPage(page);
+      if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
       keepFormFields(out, page, cache.get(p.src));
     }
     const base = page.getRotation().angle;
@@ -1498,7 +1546,8 @@ async function buildPdf(list, enc, opts) {
   else { out.setProducer('PDFout'); out.setCreator('PDFout'); }
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
   if (meta.subject) out.setSubject(meta.subject); if (meta.keywords) out.setKeywords(String(meta.keywords).split(/[,;]+/).map((k) => k.trim()).filter(Boolean));
-  if (opts && opts.post) await opts.post(out);
+  pruneCopies(out, keyMap);
+  if (opts && opts.post) { await opts.post(out); sweepUnused(out); }
   if (enc && (enc.user || enc.owner || !enc.print || !enc.copy || !enc.edit)) {
     const rnd = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,

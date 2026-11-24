@@ -1569,7 +1569,8 @@ async function save() {
     const bytes = await buildPdf(pages, protectOpts);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
-    if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name + failNote()); }
+    // fields that could not be written are not in the file: keep the document marked as changed
+    if (r) { if (!formFails.length) savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name + failNote()); }
   } catch (e) { const m = cleanErr(e.message || e); toast(/^(Cannot save|บันทึก)/.test(m) ? m : 'Save failed: ' + m); }
 }
 

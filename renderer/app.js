@@ -2,7 +2,7 @@ import * as pdfjs from './vendor/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 import { tr, getLang, setLang } from './i18n.js';
 import { initExtra } from './extra.js';
-const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier, PDFNull, PDFString, PDFStream } = window.PDFLib;
+const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier, PDFNull, PDFString, PDFStream, PDFPage } = window.PDFLib;
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -1415,6 +1415,17 @@ function keepFormFields(out, page, src) {
 // Each source page carries a private key while it is copied; every copied page that is not in the page tree is
 // pointed back at the tree page made from the same source page (or nothing), and what is left unused is dropped.
 const SRCKEY = PDFName.of('PDFoutSrc');
+// Like out.copyPages(src, [i]) but one copier per output and source file, so a form field with widgets on several
+// pages is copied once (one field, not one same-named copy per page). A page copied a second time (a duplicate)
+// gets a fresh copier so the two copies never share annotations.
+const copiers = new WeakMap();
+async function copyPage(out, src, index) {
+  let m = copiers.get(out); if (!m) copiers.set(out, (m = new Map()));
+  let e = m.get(src); if (!e) { await src.flush(); e = { cp: PDFObjectCopier.for(src.context, out.context), used: new Set() }; m.set(src, e); }
+  const cp = e.used.has(index) ? PDFObjectCopier.for(src.context, out.context) : e.cp; e.used.add(index);
+  const node = cp.copy(src.getPage(index).node);
+  return PDFPage.of(node, out.context.register(node), out);
+}
 function markSource(doc, srcId) { doc.getPages().forEach((pg, i) => pg.node.set(SRCKEY, PDFString.of(srcId + ':' + i))); return doc; }
 function sweepUnused(out) {
   const ctx = out.context, seen = new Set(), todo = [ctx.trailerInfo.Root, ctx.trailerInfo.Info];
@@ -1479,7 +1490,7 @@ async function buildPdf(list, enc, opts) {
       if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
     } else {
       if (!cache.has(p.src)) { const ent = sources.get(p.src); cache.set(p.src, markSource((await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true }), p.src)); }
-      [page] = await out.copyPages(cache.get(p.src), [p.index]);
+      page = await copyPage(out, cache.get(p.src), p.index);
       out.addPage(page);
       if (!keyMap.has(p.src + ':' + p.index)) keyMap.set(p.src + ':' + p.index, page.ref);
       keepFormFields(out, page, cache.get(p.src));
@@ -1588,7 +1599,7 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, withFormValues, keepFormFields, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, copyPage, markSource, pruneCopies, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });

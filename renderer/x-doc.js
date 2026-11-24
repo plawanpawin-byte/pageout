@@ -193,7 +193,9 @@ export function initDoc(X, c) {
   };
 
   // ---------- view helpers ----------
-  X.fitPage = () => { if (!need()) return; const [w, hh] = c.shownSize(c.pages[c.curPage]); c.setZoom(c.zoom * Math.min((c.stage.clientWidth - 48) / w, (c.stage.clientHeight - 32) / hh)); };
+  X.fitPage = () => { if (!need()) return; const [w, hh] = c.shownSize(c.pages[c.curPage]); c.setZoom(c.zoom * Math.min((c.stage.clientWidth - 48) / w, room() / hh)); };
+  // height left for the page: the stage minus its padding (the bottom padding keeps clear of the floating ribbon)
+  const room = () => { const cs = getComputedStyle(c.stage); return c.stage.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0) - 8; };
   X.isDark = () => document.body.classList.contains('pdfdark');
   X.darkPages = () => { document.body.classList.toggle('pdfdark'); try { localStorage.setItem('pdfout.dark', X.isDark() ? '1' : ''); } catch {} c.drawRibbon(); };
   try { if (localStorage.getItem('pdfout.dark')) document.body.classList.add('pdfdark'); } catch {}

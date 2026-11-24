@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('host', {
   recentStar: (id) => ipcRenderer.invoke('recent:star', id),
   recentClear: () => ipcRenderer.invoke('recent:clear'),
   info: () => ipcRenderer.invoke('app:info'),
+  setLang: (l) => ipcRenderer.send('app:lang', String(l)),
   
 });

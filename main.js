@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const TITLE = 'PDFout';
 const granted = new Map(); // opaque id -> absolute path the user picked in a dialog
 let win = null;
+let uiLang = 'en'; // the page tells us its language so native prompts match it
 
 function grant(p) {
   const id = crypto.randomBytes(8).toString('hex');
@@ -35,6 +36,17 @@ function createWindow() {
   Menu.setApplicationMenu(null);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // the page blocks unload while it has unsaved changes; ask instead of silently refusing to close
+  win.webContents.on('will-prevent-unload', (e) => {
+    const th = uiLang === 'th';
+    const r = dialog.showMessageBoxSync(win, {
+      type: 'question', title: TITLE, noLink: true, defaultId: 1, cancelId: 1,
+      buttons: th ? ['ปิดโดยไม่บันทึก', 'ยกเลิก'] : ['Close without saving', 'Cancel'],
+      message: th ? 'เอกสารนี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก' : 'This document has unsaved changes.',
+      detail: th ? 'ถ้าปิดตอนนี้ การเปลี่ยนแปลงจะหายไป' : 'If you close now, your changes will be lost.',
+    });
+    if (r === 0) e.preventDefault();
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.on('closed', () => { win = null; });
 }
@@ -137,6 +149,7 @@ ipcMain.handle('file:write', async (_e, id, data) => {
 ipcMain.handle('file:read', async (_e, id) => fs.readFileSync(pathOf(id)));
 
 ipcMain.handle('app:info', () => ({ name: TITLE, version: app.getVersion() }));
+ipcMain.on('app:lang', (_e, l) => { uiLang = l === 'th' ? 'th' : 'en'; });
 
 
 

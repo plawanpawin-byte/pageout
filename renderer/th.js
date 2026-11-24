@@ -146,6 +146,8 @@ export const TH = {
   'Saved ': 'บันทึกแล้ว ', 'Export failed: ': 'ส่งออกไม่สำเร็จ: ', 'Save failed: ': 'บันทึกไม่สำเร็จ: ', 'Failed: ': 'ไม่สำเร็จ: ', 'OCR failed: ': 'อ่านข้อความไม่สำเร็จ: ', 'Crop failed: ': 'ตัดขอบไม่สำเร็จ: ', 'Resize failed: ': 'เปลี่ยนขนาดไม่สำเร็จ: ', 'Split failed: ': 'แยกไฟล์ไม่สำเร็จ: ', 'Signing failed: ': 'เซ็นไม่สำเร็จ: ', 'Compress failed: ': 'บีบอัดไม่สำเร็จ: ', 'Word export failed: ': 'ส่งออก Word ไม่สำเร็จ: ', 'Archive copy failed: ': 'สร้างสำเนาเก็บถาวรไม่สำเร็จ: ', 'Form fill failed: ': 'กรอกฟอร์มไม่สำเร็จ: ',
   'Cannot open: ': 'เปิดไม่ได้: ', 'Cannot compare: ': 'เปรียบเทียบไม่ได้: ', 'Search': 'ค้นหา', 'Folder ': 'โฟลเดอร์',
   'Nothing was made. ': 'ไม่ได้สร้างอะไรเลย ', 'Could not read: ': 'อ่านไม่ได้: ',
+  // Google-style layout (2026-11)
+  'Details': 'รายละเอียด', 'Hide panel': 'ซ่อนแผง', 'What would you like to do with a PDF?': 'อยากทำอะไรกับ PDF ดี',
 };
 // sentences that carry numbers or names
 const pl = (n, w) => w;

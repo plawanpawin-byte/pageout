@@ -269,7 +269,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;
   const m = [...document.querySelectorAll('.modal-back')].pop();
   if (!m) return;
-  const b = [...m.querySelectorAll('button')].find((x) => /^(cancel|close|done|back|ok)$/i.test(x.textContent.trim()));
+  // match the English key too, so Esc also works when the buttons are shown in Thai
+  const b = [...m.querySelectorAll('button')].find((x) => /^(cancel|close|done|back|ok)$/i.test(((x.dataset && x.dataset.k) || x.textContent).trim()));
   if (b) { e.preventDefault(); b.click(); }
 });
 

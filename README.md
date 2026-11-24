@@ -2,15 +2,25 @@
 
 <h1 align="center">PDFout</h1>
 
-<p align="center"><b>The PDF desk that never leaves your computer</b><br>Version 1.0.23 (beta) for Windows · Free · Offline · No account</p>
+<p align="center"><b>The PDF desk that never leaves your computer</b><br>Version 1.0.24 (beta) for Windows · Free · Offline · No account</p>
 
-<p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.23"><b>Download the beta</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
+<p align="center"><a href="https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.24"><b>Download the beta</b></a> · <a href="https://github.com/plawanpawin-byte/lookout-launcher">Lookout launcher</a> · <a href="https://github.com/plawanpawin-byte/Lookout">All Lookout apps</a></p>
 
 ---
 
 ![PDFout home screen](screenshots/00-home.png)
 
-> **Beta notice.** Version 1.0.23 is a public beta. It contains everything described below and has been tested by driving the real application, but it has not had the long soak of a stable release. If something misbehaves, your original files are never touched, because PDFout always saves to a new file.
+> **Beta notice.** Version 1.0.24 is a public beta. It contains everything described below and has been tested by driving the real application, but it has not had the long soak of a stable release. If something misbehaves, your original files are never touched, because PDFout always saves to a new file.
+
+## What is new in 1.0.24
+
+- New Google-style look (rounded panels, floating ribbon, Material icons), also in Thai.
+- Closing the window or opening another file now asks first when you have unsaved work, and a failed open never loses the open document.
+- Saves are safe: written to a temp file then renamed, with a plain message if the file is read-only or locked.
+- Form fields: values show, count as changes, survive Save as and Flatten (Thai too); a password set for one file no longer locks the next.
+- Redaction no longer leaves unused copies of the redacted page in the saved file.
+- F6 moves between the main areas of the window; Fit page fits above the ribbon.
+- Known gaps: form edits are not undo steps, copied form pages share field names, files opened with "Open with" are not yet registered by the installer.
 
 ## The story in one minute
 
@@ -192,7 +202,7 @@ Opens PDF files (including ones locked with a password, if you know it), picture
 
 ## Install
 
-1. Open the [v1.0.23 release](https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.23) and download **PDFout-Setup-1.0.23.exe**. You can also install it from the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
+1. Open the [v1.0.24 release](https://github.com/plawanpawin-byte/pdfout/releases/tag/v1.0.24) and download **PDFout-Setup-1.0.24.exe**. You can also install it from the [Lookout launcher](https://github.com/plawanpawin-byte/lookout-launcher).
 2. Run the installer. It installs just for you, so it does not need administrator rights.
 3. Windows may show a blue **Windows protected your PC** screen because the installer is not signed with a paid certificate. Click **More info**, then **Run anyway**.
 4. Open PDFout from the Start menu.

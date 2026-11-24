@@ -83,7 +83,7 @@ const vh = (t) => { const e = h('span', { class: 'vh' }); e.textContent = t; ret
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
 const bHome = btn('Home', () => {
   if (pages.length && stamp() !== savedSnap && !confirm(tr('Close this document without saving?'))) return;
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; leftMode = 'pages'; fullRender();
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = ''; lastSave = null; sel.clear(); selAnn = null; savedSnap = null; outline = []; protectOpts = null; leftMode = 'pages'; fullRender();
 });
 const bUndo = btn('Undo', () => undo());
 const bRedo = btn('Redo', () => redo());
@@ -203,8 +203,9 @@ const CATS = [
 const IC = (d) => { const s = sv('svg', { viewBox: '0 0 24 24', width: 22, height: 22, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); s.innerHTML = d; return s; };
 async function openThen(fn) { await openFiles(false); if (pages.length && fn) setTimeout(fn, 60); }
 async function createBlank() {
+  if (isDirty() && !confirm(tr('Close this document without saving?'))) return;
   const d = await PDFDocument.create(); d.addPage([595.28, 841.89]);
-  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = [];
+  pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = 'Untitled.pdf'; lastSave = null; outline = []; protectOpts = null;
   const sid = await addSource('Untitled.pdf', new Uint8Array(await d.save()));
   pages.push(...await pagesOf(sid)); sel.clear(); curPage = 0; selAnn = null; meta = { title: '', author: '' };
   setTimeout(() => { savedSnap = stamp(); }, 0); fullRender();
@@ -412,7 +413,7 @@ async function loadFiles(files, merge) {
   }
   if (!added.length) { for (const k of [...sources.keys()]) if (!before.has(k)) sources.delete(k); return; }
   if (merge) { commit(); pages.push(...added); }
-  else { for (const k of before) sources.delete(k); pages = added; undoStack = []; redoStack = []; fileName = firstName; lastSave = null; outline = []; }
+  else { for (const k of before) sources.delete(k); pages = added; undoStack = []; redoStack = []; fileName = firstName; lastSave = null; outline = []; protectOpts = null; }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
   sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = stamp(); }, 0);
   for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
@@ -433,7 +434,7 @@ const snapReplacer = (k, v) => {
 };
 const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
-const stamp = () => snapshot() + JSON.stringify([outline, meta, [...sources.values()].map((e) => e.vals)]);   // what counts as unsaved work (pages, bookmarks, properties, form values)
+const stamp = () => snapshot() + JSON.stringify([outline, meta, [...sources.values()].map((e) => e.vals), protectOpts]);   // what counts as unsaved work (pages, bookmarks, properties, form values, password)
 const isDirty = () => pages.length > 0 && stamp() !== savedSnap;
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }

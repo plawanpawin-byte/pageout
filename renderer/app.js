@@ -1267,8 +1267,8 @@ async function exportWord() { if (X.exportWord) return X.exportWord(); }
 
 // ---------- export ----------
 const hex = (c) => { const n = parseInt(c.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
-async function rasterPage(p, list, scale = 2.5) {
-  const pg = await sources.get(p.src).pdf.getPage(p.index + 1);
+async function rasterPage(p, list, scale = 2.5, doc = null) {
+  const pg = await (doc || sources.get(p.src).pdf).getPage(p.index + 1);
   const vp = pg.getViewport({ scale, rotation: pg.rotate });
   const cv = h('canvas'); cv.width = vp.width; cv.height = vp.height;
   const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -1406,13 +1406,15 @@ async function buildPdf(list, enc, opts) {
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
   const needThai = list.some((p) => p.annots.some((an) => an.type === 'text' && THAI.test(an.text)) || (p.ocr && p.ocr.lines.some((l) => THAI.test(l.t))));
   if (needThai && window.fontkit) { out.registerFontkit(window.fontkit); F.thai = await out.embedFont(await getThaiBytes(), { subset: true }); }
-  const cache = new Map(), linkJobs = [], outPages = [];
+  const cache = new Map(), rcache = new Map(), linkJobs = [], outPages = [];
   for (const p of list) {
     let page; let q = p;
     const redacts = p.annots.filter((a) => a.type === 'redact' || a.perm);
     if (!p.src) { page = out.addPage([p.w, p.h]); }
     else if (redacts.length) {
-      const img = await out.embedPng(await rasterPage(p, redacts));
+      // the picture of the page must show the form values typed in the panel too
+      if (!rcache.has(p.src)) { const d = await withFormValues(sources.get(p.src)); const task = d && pdfjs.getDocument({ data: await d.save({ updateFieldAppearances: false }), isEvalSupported: false, enableXfa: false }); rcache.set(p.src, task && { task, pdf: await task.promise }); }
+      const img = await out.embedPng(await rasterPage(p, redacts, 2.5, rcache.get(p.src) && rcache.get(p.src).pdf));
       // the raster is already in displayed orientation: size the page to it and drop the intrinsic rotation
       const [rw, rh] = dispDims(p);
       page = out.addPage([rw, rh]); page.drawImage(img, { x: 0, y: 0, width: rw, height: rh });
@@ -1490,6 +1492,7 @@ async function buildPdf(list, enc, opts) {
     page.setRotation(degrees((base + p.rot) % 360));
     outPages.push({ id: p.id, page });
   }
+  for (const r of rcache.values()) if (r) r.task.destroy();
   addLinksAndOutline(out, list, outPages, linkJobs);
   if (opts && opts.noMeta) { out.setProducer(''); out.setCreator(''); }
   else { out.setProducer('PDFout'); out.setCreator('PDFout'); }

@@ -493,8 +493,9 @@ async function renderPage(el, p) {
   const src = sources.get(p.src); if (!src) return;
   const pg = await src.pdf.getPage(p.index + 1);
   const vp = pg.getViewport({ scale: zoom, rotation: (pg.rotate + p.rot) % 360 });
-  const dpr = window.devicePixelRatio || 1;
-  const cv = h('canvas'); cv.width = Math.floor(vp.width * dpr); cv.height = Math.floor(vp.height * dpr);
+  // pixels per CSS pixel; capped so a very large page or zoom never asks for a canvas the browser cannot make (it would stay blank)
+  const dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(16e6 / (vp.width * vp.height)), 16000 / Math.max(vp.width, vp.height));
+  const cv = h('canvas'); cv.width = Math.max(1, Math.floor(vp.width * dpr)); cv.height = Math.max(1, Math.floor(vp.height * dpr));
   cv.style.width = vp.width + 'px'; cv.style.height = vp.height + 'px';
   el.style.width = vp.width + 'px'; el.style.height = vp.height + 'px';
   el.textContent = ''; el.append(cv);
@@ -542,7 +543,7 @@ async function drawThumb(c, p) {
   const src = sources.get(p.src); if (!src) return;
   const pg = await src.pdf.getPage(p.index + 1);
   const base = pg.getViewport({ scale: 1, rotation: (pg.rotate + p.rot) % 360 });
-  const s = 140 / base.width; const vp = pg.getViewport({ scale: s, rotation: (pg.rotate + p.rot) % 360 });
+  const s = Math.min(140 / base.width, 600 / base.height); const vp = pg.getViewport({ scale: s, rotation: (pg.rotate + p.rot) % 360 });
   c.width = vp.width; c.height = vp.height;
   try { await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; } catch {}
 }
@@ -579,9 +580,10 @@ function movePages(ids, targetId, after) {
 function pageOp(op) {
   if (!pages.length) return;
   const ids = sel.size ? sel : new Set([pages[curPage].id]);
+  if (op === 'del' && pages.every((p) => ids.has(p.id))) { toast('A document needs at least one page'); return; }   // refuse before commit() so Redo survives
   commit();
   if (op === 'rotL' || op === 'rotR') pages.forEach((p) => { if (ids.has(p.id)) p.rot = (p.rot + (op === 'rotR' ? 90 : 270)) % 360; });
-  else if (op === 'del') { if (ids.size >= pages.length) { toast('A document needs at least one page'); undoStack.pop(); return; } pages = pages.filter((p) => !ids.has(p.id)); sel.clear(); }
+  else if (op === 'del') { pages = pages.filter((p) => !ids.has(p.id)); sel.clear(); }
   else if (op === 'dup') { const out = []; for (const p of pages) { out.push(p); if (ids.has(p.id)) out.push({ ...JSON.parse(JSON.stringify(p)), id: uid() }); } pages = out; }
   else if (op === 'up') { for (let i = 1; i < pages.length; i++) if (ids.has(pages[i].id) && !ids.has(pages[i - 1].id)) [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]]; }
   else if (op === 'down') { for (let i = pages.length - 2; i >= 0; i--) if (ids.has(pages[i].id) && !ids.has(pages[i + 1].id)) [pages[i + 1], pages[i]] = [pages[i], pages[i + 1]]; }

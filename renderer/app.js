@@ -1184,6 +1184,7 @@ async function applyForm(srcId) {
   const ent = sources.get(srcId);
   try {
     const d = (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+    await fillMissingAppearances(d);
     d.getForm().flatten({ updateFieldAppearances: false });
     const bytes = new Uint8Array(await d.save({ updateFieldAppearances: false }));
     const pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
@@ -1391,7 +1392,8 @@ function keepFormFields(out, page, src) {
   const srcAF = src.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
   if (srcAF) {
     const cp = PDFObjectCopier.for(src.context, out.context);
-    for (const k of ['DA', 'DR', 'Q']) { const v = srcAF.get(PDFName.of(k)); if (v && !af.dict.get(PDFName.of(k))) af.dict.set(PDFName.of(k), cp.copy(v)); }
+    // NeedAppearances too: fields without a picture still show their answers in other viewers
+    for (const k of ['DA', 'DR', 'Q', 'NeedAppearances']) { const v = srcAF.get(PDFName.of(k)); if (v && !af.dict.get(PDFName.of(k))) af.dict.set(PDFName.of(k), cp.copy(v)); }
   }
 }
 async function buildPdf(list, enc, opts) {

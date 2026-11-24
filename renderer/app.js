@@ -466,6 +466,7 @@ function renderVisible() {
 }
 function fullRender() {
   document.body.classList.toggle('is-home', !pages.length);
+  curPage = Math.max(0, Math.min(curPage, pages.length - 1));   // pages may have been deleted or undone
   if (!pages.length) renderHome();
   updateButtons();
   renderThumbs(); renderStage(); renderRight(); renderStatus();
@@ -553,6 +554,8 @@ function thumbClick(e, p, i) {
   else sel = new Set([p.id]);
   thumbEls.forEach((el, id) => el.classList.toggle('sel', sel.has(id)));
   scrollToPage(i);
+  // the clicked page becomes the current one even when the document fits on screen and nothing scrolls
+  if (curPage !== i) { curPage = i; renderStatus(); }
 }
 function scrollToPage(i) { const el = pageEls.get(pages[i]?.id); if (el) stage.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' }); }
 function onScroll() {

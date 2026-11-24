@@ -491,7 +491,8 @@ function unrender(el) { el._rendered = false; el._task?.cancel?.(); el.textConte
 async function renderPage(el, p) {
   if (el._rendered) return;
   el._rendered = true;
-  const src = sources.get(p.src); if (!src) return;
+  const src = sources.get(p.src);
+  if (!src) { el.textContent = ''; el.append(makeOverlay(p)); return; }   // a page added with Blank: nothing to draw, but it still takes marks
   const pg = await src.pdf.getPage(p.index + 1);
   const vp = pg.getViewport({ scale: zoom, rotation: (pg.rotate + p.rot) % 360 });
   // pixels per CSS pixel; capped so a very large page or zoom never asks for a canvas the browser cannot make (it would stay blank)
@@ -553,9 +554,9 @@ function thumbClick(e, p, i) {
   else if (e.shiftKey && sel.size) { const last = pages.findIndex((x) => sel.has(x.id)); const [a, b] = [Math.min(last, i), Math.max(last, i)]; sel = new Set(pages.slice(a, b + 1).map((x) => x.id)); }
   else sel = new Set([p.id]);
   thumbEls.forEach((el, id) => el.classList.toggle('sel', sel.has(id)));
-  scrollToPage(i);
   // the clicked page becomes the current one even when the document fits on screen and nothing scrolls
   if (curPage !== i) { curPage = i; renderStatus(); }
+  scrollToPage(i);
 }
 function scrollToPage(i) { const el = pageEls.get(pages[i]?.id); if (el) stage.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' }); }
 function onScroll() {

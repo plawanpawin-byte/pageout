@@ -41,7 +41,7 @@ export function initPages(X, c) {
       // keep form fields (and their current values) on the rebuilt pages
       for (const pg of made) c.keepFormFields(out, pg, cache.get(p.src));
     }
-    c.pruneCopies(out, keyMap);
+    await c.pruneCopies(out, keyMap);
     const bytes = new Uint8Array(await out.save({ updateFieldAppearances: false }));
     const id = await c.addSource(c.fileName || 'document.pdf', bytes); const ps = await c.pagesOf(id);
     all.forEach((p, i) => { if (chosen.has(p)) after(p, info[i]); p.src = id; p.index = i; p.w = ps[i].w; p.h = ps[i].h; p.r0 = ps[i].r0; });

@@ -1428,7 +1428,10 @@ async function copyPage(out, src, index) {
   return PDFPage.of(node, out.context.register(node), out);
 }
 function markSource(doc, srcId) { doc.getPages().forEach((pg, i) => pg.node.set(SRCKEY, PDFString.of(srcId + ':' + i))); return doc; }
-function sweepUnused(out) {
+// fonts, images and embedded pages are only written into the file on flush; until then the copied page an
+// embedded page reads from is not reachable, and its content would be swept
+async function sweepUnused(out) {
+  await out.flush();
   const ctx = out.context, seen = new Set(), todo = [ctx.trailerInfo.Root, ctx.trailerInfo.Info];
   while (todo.length) {
     let o = todo.pop(); if (!o) continue;
@@ -1439,7 +1442,7 @@ function sweepUnused(out) {
   }
   for (const [ref] of ctx.enumerateIndirectObjects()) if (!seen.has(ref.tag)) ctx.delete(ref);
 }
-function pruneCopies(out, keyMap) {
+async function pruneCopies(out, keyMap) {
   const ctx = out.context, isPage = (o) => o instanceof PDFDict && o.get(PDFName.of('Type')) === PDFName.of('Page');
   const tree = new Set(out.getPages().map((pg) => pg.ref.tag)), remap = new Map(), annots = new Set();
   for (const pg of out.getPages()) {
@@ -1466,7 +1469,7 @@ function pruneCopies(out, keyMap) {
     } else if (o instanceof PDFArray) for (let i = 0; i < o.size(); i++) { const v = o.get(i), n = fix(v); if (n) o.set(i, n); else if (!(v instanceof PDFRef)) walk(v, depth + 1); }
   };
   for (const [, o] of ctx.enumerateIndirectObjects()) walk(o, 0);
-  sweepUnused(out);
+  await sweepUnused(out);
 }
 async function buildPdf(list, enc, opts) {
   formFails = [];
@@ -1569,8 +1572,8 @@ async function buildPdf(list, enc, opts) {
   else { out.setProducer('PDFout'); out.setCreator('PDFout'); }
   if (meta.title) out.setTitle(meta.title); if (meta.author) out.setAuthor(meta.author);
   if (meta.subject) out.setSubject(meta.subject); if (meta.keywords) out.setKeywords(String(meta.keywords).split(/[,;]+/).map((k) => k.trim()).filter(Boolean));
-  pruneCopies(out, keyMap);
-  if (opts && opts.post) { await opts.post(out); sweepUnused(out); }
+  await pruneCopies(out, keyMap);
+  if (opts && opts.post) { await opts.post(out); await sweepUnused(out); }
   if (enc && (enc.user || enc.owner || !enc.print || !enc.copy || !enc.edit)) {
     const rnd = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
     out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,

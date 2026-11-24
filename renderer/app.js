@@ -397,7 +397,8 @@ function applyFormData(map) {
   }
   return n;
 }
-async function loadFiles(files, merge) {
+// asked: the caller already asked about unsaved work
+async function loadFiles(files, merge, asked) {
   if (!files || !files.length) return;
   const forms = files.filter((f) => FORM_RE.test(f.name)), docs = files.filter((f) => !FORM_RE.test(f.name));
   if (!docs.length) {
@@ -406,7 +407,7 @@ async function loadFiles(files, merge) {
     toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); return;
   }
   // replacing the open document: ask first when it has unsaved changes
-  if (!merge && isDirty() && !confirm(tr('Open this file and close the current one without saving?'))) return;
+  if (!merge && !asked && isDirty() && !confirm(tr('Open this file and close the current one without saving?'))) return;
   // load into new sources first; the open document is only replaced once at least one file opened
   const before = new Set(sources.keys()), added = []; let firstName = '';
   for (const f of docs) {
@@ -1599,7 +1600,7 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, withFormValues, keepFormFields, copyPage, markSource, pruneCopies, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, copyPage, markSource, pruneCopies, isDirty, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });

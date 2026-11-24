@@ -165,6 +165,13 @@ ipcMain.handle('file:write', async (_e, id, data) => {
 
 ipcMain.handle('file:read', async (_e, id) => fs.readFileSync(pathOf(id)));
 
+// files named on the command line ("Open with" in Explorer): handed to the page once, at start
+let launchPaths = process.argv.slice(app.isPackaged ? 1 : 2).filter((a) => /\.(pdf|png|jpe?g)$/i.test(a)).map((a) => path.resolve(a)).filter((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+ipcMain.handle('app:launchFiles', () => {
+  const ps = launchPaths; launchPaths = []; const out = [];
+  for (const p of ps) { try { out.push(readItem(p)); recentAdd(p); } catch {} }
+  return out;
+});
 ipcMain.handle('app:info', () => ({ name: TITLE, version: app.getVersion() }));
 ipcMain.on('app:lang', (_e, l) => { uiLang = l === 'th' ? 'th' : 'en'; });
 

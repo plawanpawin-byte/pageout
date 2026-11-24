@@ -1492,5 +1492,7 @@ initExtra(X, {
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });
 fullRender();
+// a file chosen with "Open with" (or named on the command line) opens straight away
+if (window.host.launchFiles) window.host.launchFiles().then((f) => { if (f && f.length) loadFiles(f); }).catch(() => {});
 
 window.addEventListener('beforeunload', (e) => { if (pages.length && stamp() !== savedSnap) { e.preventDefault(); e.returnValue = ''; } });

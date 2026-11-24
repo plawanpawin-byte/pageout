@@ -215,9 +215,22 @@ export function initDoc(X, c) {
     reading = false;
   };
   X.shortcuts = () => {
-    const rows = [['Ctrl + O', 'Open a file'], ['Ctrl + S', 'Save as'], ['Ctrl + P', 'Print'], ['Ctrl + F', 'Search the text'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y', 'Redo'], ['Ctrl + plus / minus', 'Zoom in or out'], ['Ctrl + mouse wheel', 'Zoom'], ['Page Up / Page Down', 'Previous or next page'], ['Home / End', 'First or last page'], ['Delete', 'Delete the selected mark'], ['Esc', 'Deselect, or close a window'], ['F11', 'Full screen']];
+    const rows = [['Ctrl + O', 'Open a file'], ['Ctrl + S', 'Save as'], ['Ctrl + P', 'Print'], ['Ctrl + F', 'Search the text'], ['Ctrl + Z', 'Undo'], ['Ctrl + Y', 'Redo'], ['Ctrl + plus / minus', 'Zoom in or out'], ['Ctrl + mouse wheel', 'Zoom'], ['Page Up / Page Down', 'Previous or next page'], ['Home / End', 'First or last page'], ['Delete', 'Delete the selected mark'], ['Esc', 'Deselect, or close a window'], ['F6 / Shift + F6', 'Move between the top bar, page list, document and details'], ['F11', 'Full screen']];
     modal(c, 'Keyboard shortcuts', rows.map(([k, d]) => h('div', {}, h('span', { class: 'kbd', text: k }), h('span', { text: d }))), (close) => [btn('Close', close, 'primary')]);
   };
+  // F6 / Shift+F6: move the keyboard between the top bar, the page list, the document and the details panel (works from text boxes too)
+  c.stage.tabIndex = -1;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'F6' || e.ctrlKey || e.altKey || document.querySelector('.modal-back')) return;
+    e.preventDefault();
+    const shown = (r) => r && r.getClientRects().length > 0 && r.offsetWidth > 0;
+    const regions = [document.querySelector('.app>.toolbar'), document.querySelector('.sidebar:not(.right)'), c.stage, document.querySelector('.sidebar.right')].filter(shown);
+    if (!regions.length) return;
+    const at = regions.findIndex((r) => r.contains(document.activeElement)), n = regions.length;
+    const r = regions[at < 0 ? (e.shiftKey ? n - 1 : 0) : (at + (e.shiftKey ? n - 1 : 1)) % n];
+    const first = r === c.stage ? null : [...r.querySelectorAll('button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')].find(shown);
+    if (first) first.focus(); else { if (r.tabIndex < 0 && r !== c.stage) r.tabIndex = -1; r.focus({ preventScroll: true }); }
+  });
   document.addEventListener('keydown', (e) => {
     if (document.querySelector('.modal-back') || e.target.matches('input,textarea,select')) { if (e.ctrlKey && e.key.toLowerCase() === 'f' && !document.querySelector('.modal-back')) { e.preventDefault(); const s = document.querySelector('input[type=search]'); if (s) { s.focus(); s.select(); } } return; }
     if (e.ctrlKey && e.key.toLowerCase() === 'f') { e.preventDefault(); const s = document.querySelector('input[type=search]'); if (s) { s.focus(); s.select(); } }

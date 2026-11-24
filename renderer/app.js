@@ -53,11 +53,30 @@ const left = h('div', { class: 'sidebar' });
 const stage = h('div', { class: 'stage' });
 const right = h('div', { class: 'sidebar right' });
 const status = h('div', { class: 'status' });
-const ribbon = h('div', { class: 'ribbon' });
-const head = h('div', { class: 'head' }, toolbar, ribbon);
-app.append(head, h('div', { class: 'main' }, left, h('div', { style: 'flex:1;min-width:0;display:flex' }, stage), right), status);
+const ribbon = h('div', { class: 'ribbon', role: 'toolbar', 'aria-label': 'Tools' });
+const modebar = h('div', { class: 'modebar' });
+// order matters: the floating tool bar comes before the panels and the home screen comes last
+app.append(toolbar, modebar, ribbon, h('div', { class: 'main' }, left, h('div', { class: 'center' }, stage), right), status);
 stage.style.flex = '1';
 stage.style.overflow = 'auto';
+
+// Material outline icons (24px grid, filled paths) for the controls the Lookout kit has no icon for
+const MI = {
+  search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  minus: 'M19 13H5v-2h14v2z',
+  plus: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  fit: 'M17 4h3c1.1 0 2 .9 2 2v2h-2V6h-3V4zM4 8V6h3V4H4c-1.1 0-2 .9-2 2v2h2zm16 8v2h-3v2h3c1.1 0 2-.9 2-2v-2h-2zM7 18H4v-2H2v2c0 1.1.9 2 2 2h3v-2zM18 8H6v8h12V8z',
+  left: 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+  right: 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  starO: 'M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
+  history: 'M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+  folder: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z',
+  newdoc: 'M13 11h-2v3H8v2h3v3h2v-3h3v-2h-3zm1-9H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',
+  doc: 'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z',
+};
+const mi = (name, size = 20) => { const s = sv('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'currentColor', class: 'ms', 'aria-hidden': 'true', focusable: 'false' }); s.append(sv('path', { d: MI[name] })); return s; };
+const vh = (t) => { const e = h('span', { class: 'vh' }); e.textContent = t; return e; };   // plain text kept for text lookups; aria-label names the control
 
 const btn = (label, fn, cls = '') => h('button', { class: 'btn ' + cls, onclick: fn, text: label });
 const bHome = btn('Home', () => {
@@ -75,18 +94,38 @@ const tabEls = {};
 const tabBar = h('div', { class: 'tabs', role: 'tablist' }, TABS.map(([k, n]) => (tabEls[k] = h('button', { class: 'tab', role: 'tab', text: n,
   onclick: () => { if (ribbonTab === k) ribbonOpen = !ribbonOpen; else { ribbonTab = k; ribbonOpen = true; } drawRibbon(); } }))));
 const bLang = h('button', { class: 'btn minor', title: 'Language', onclick: () => { setLang(getLang() === 'th' ? 'en' : 'th'); retranslate(); } });
-const langLabel = () => { bLang.textContent = getLang() === 'th' ? 'EN' : 'ไทย'; bLang.dataset.k = 'Language'; };
+const langLabel = () => { bLang.textContent = getLang() === 'th' ? 'EN' : 'ไทย'; bLang.dataset.k = 'Language'; bLang.title = tr('Language'); bLang.setAttribute('aria-label', tr('Language') + ': ' + bLang.textContent); };
 langLabel();
-toolbar.append(bHome, h('span', { class: 'sep' }), tabBar, h('span', { class: 'grow' }), bUndo, bRedo, h('span', { class: 'sep' }), search, bLang);
+// top app bar: home, brand, file name, search, then undo/redo, language and the two main actions
+const bOpen = btn('Open', () => openFiles(false), 'primary tonal');
+const bSave = btn('Save as', () => save(), 'primary');
+const docName = h('div', { class: 'docname', role: 'status' });
+const brandEl = h('div', { class: 'brand' }, h('img', { src: 'brand.svg', alt: '' }), h('span', { text: 'PDFout' }));
+const sbox = h('label', { class: 'sbox' }, mi('search'), search);
+search.style.width = '';
+toolbar.append(bHome, brandEl, docName, h('span', { class: 'grow' }), sbox, h('div', { class: 'tend' }, bUndo, bRedo, bLang, bOpen, bSave));
+// mode bar: the tool sets as chips, and a quick zoom control on the right
+const zb = (key, icon, fn) => h('button', { class: 'zbtn', type: 'button', title: key, 'aria-label': key, onclick: fn }, mi(icon), vh({ 'Zoom out': '-', 'Zoom in': '+', 'Fit to width': 'Fit' }[key]));
+const zOut = zb('Zoom out', 'minus', () => setZoom(zoom / 1.15));
+const zPct = h('span', { class: 'zpct', 'aria-live': 'polite' });
+const zIn = zb('Zoom in', 'plus', () => setZoom(zoom * 1.15));
+const zFit = zb('Fit to width', 'fit', () => fitWidth());
+const zoomBar = h('div', { class: 'zoombar', role: 'group', 'aria-label': 'Zoom' }, zOut, zPct, zIn, zFit);
+modebar.append(tabBar, zoomBar);
 function retranslate() {
-  const set = (el, key) => { if (!el) return; el.dataset.k = key; el.textContent = tr(key); };
-  set(bHome, 'Home'); set(bUndo, 'Undo'); set(bRedo, 'Redo');
+  const set = (el, key) => { if (!el) return; el.dataset.k = key; el.textContent = tr(key); el.title = tr(key); };
+  set(bHome, 'Home'); set(bUndo, 'Undo'); set(bRedo, 'Redo'); set(bOpen, 'Open'); set(bSave, 'Save as');
   TABS.forEach(([k, n]) => set(tabEls[k], n));
   search.placeholder = tr('Search text'); search.setAttribute('aria-label', tr('Search text'));
+  for (const [b, k] of [[zOut, 'Zoom out'], [zIn, 'Zoom in'], [zFit, 'Fit to width']]) { b.title = tr(k); b.setAttribute('aria-label', tr(k)); }
+  zoomBar.setAttribute('aria-label', tr('Zoom')); ribbon.setAttribute('aria-label', tr('Tools'));
   document.documentElement.lang = getLang();
   langLabel(); drawRibbon(); fullRender();
 }
-const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true; return b; };
+const rb = (label, fn, o = {}) => { const b = h('button', { class: 'btn rb' + (o.on ? ' on' : ''), onclick: fn, text: label, title: o.tip || label }); if (o.dis) b.disabled = true;
+  const zi = { '-': 'minus', '+': 'plus' }[label]; // the kit has no icon for these labels; give them Material ones
+  if (zi) { const s = mi(zi); s.classList.add('ic'); s.dataset.for = label; b.prepend(s); b.setAttribute('aria-label', tr(o.tip)); }
+  return b; };
 const rg = (...kids) => h('div', { class: 'rgroup' }, ...kids);
 function drawRibbon() {
   const none = !pages.length;
@@ -119,7 +158,20 @@ function drawRibbon() {
     view: [zoomG, rg(rb('Fit page', () => X.fitPage && X.fitPage(), { dis: none }), rb('Dark pages', () => X.darkPages && X.darkPages(), { dis: none, on: X.isDark && X.isDark(), tip: 'Invert page colours for night reading' }), rb('Full screen', () => X.fullscreen && X.fullscreen(), { dis: none }), rb('Read aloud', () => X.readAloud && X.readAloud(), { dis: none, tip: 'Hear the page read out by this computer' }), rb('Shortcuts', () => X.shortcuts && X.shortcuts()))],
   };
   ribbon.append(...groups[ribbonTab].flatMap((g, i) => (i ? [h('span', { class: 'rsep' }), g] : [g])));
+  placeDock();
 }
+// the tool bar floats over the bottom of the document; keep it centred on the page area and leave room to scroll past it
+function placeDock() {
+  for (const b of [zOut, zIn, zFit]) b.disabled = !pages.length;
+  const r = stage.getBoundingClientRect();
+  if (!ribbonOpen || !r.width) { stage.style.paddingBottom = ''; return; }
+  ribbon.style.left = Math.round(r.left + r.width / 2) + 'px';
+  ribbon.style.maxWidth = Math.max(200, Math.round(r.width - 24)) + 'px';
+  ribbon.style.bottom = Math.max(8, Math.round(window.innerHeight - r.bottom + 12)) + 'px';
+  stage.style.paddingBottom = (ribbon.offsetHeight + 28) + 'px';
+}
+window.addEventListener('resize', () => placeDock());
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => placeDock()); ro.observe(stage, { box: 'border-box' }); }
 function refreshSwatches() { swatchBox.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === color)); }
 refreshSwatches();
 function setTool(t) {
@@ -188,15 +240,17 @@ const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ma
 const fmtDate = (t) => { const d = new Date(t); return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
 async function renderHome() {
   home.textContent = '';
-  const nav = h('div', { class: 'home-nav' },
+  const nb = (cls, icon, key, fn) => h('button', { class: cls, type: 'button', onclick: fn }, mi(icon, 22), h('span', { class: 'hl', text: key }));
+  const tabs = [['recent', 'Recent files', 'history'], ['starred', 'Starred files', 'starO']];
+  const nav = h('nav', { class: 'home-nav', 'aria-label': 'PDFout' },
     h('div', { class: 'home-brand' }, h('img', { src: 'brand.svg', alt: '' }), h('span', { text: 'PDFout' })),
-    btn('Open PDF', () => openFiles(false), 'primary big'),
-    btn('Create PDF', () => createBlank(), 'big outline'),
-    h('div', { class: 'home-links' },
-      ...[['recent', 'Recent files'], ['starred', 'Starred files']].map(([k, n]) => h('button', { class: 'home-link' + (homeTab === k ? ' on' : ''), text: n, onclick: () => { homeTab = k; renderHome(); } }))),
-    h('div', { class: 'home-note', text: 'Everything stays on this computer. Nothing is uploaded.' }));
+    nb('hnew', 'folder', 'Open PDF', () => openFiles(false)),
+    nb('hnew alt', 'newdoc', 'Create PDF', () => createBlank()),
+    h('div', { class: 'home-links' }, ...tabs.map(([k, n, ic]) => { const b = nb('htab home-link' + (homeTab === k ? ' on' : ''), ic, n, () => { homeTab = k; renderHome(); }); b.title = tr(n); if (homeTab === k) b.setAttribute('aria-current', 'page'); return b; })));
+  nav.querySelectorAll('.hnew').forEach((b) => { b.title = b.textContent; });
   const cat = CATS.find((x) => x[0] === homeCat) || CATS[0], shown = cat[2].map((n) => QUICK.find((q) => q[0] === n)).filter(Boolean);
-  const chips = h('div', { class: 'chips' }, ...CATS.map(([k, n]) => h('button', { class: 'chip' + (k === homeCat ? ' on' : ''), text: n, onclick: () => { homeCat = k; renderHome(); } })), h('button', { class: 'chip' + (homeCat === 'all' ? ' on' : ''), text: 'All', onclick: () => { homeCat = 'all'; renderHome(); } }));
+  const chip = (k, n) => h('button', { class: 'chip' + (k === homeCat ? ' on' : ''), 'aria-pressed': String(k === homeCat), text: n, onclick: () => { homeCat = k; renderHome(); } });
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Quick tools' }, ...CATS.map(([k, n]) => chip(k, n)), chip('all', 'All'));
   const list_ = homeCat === 'all' ? QUICK : shown;
   const quick = h('div', {}, chips, h('div', { class: 'quick' }, ...list_.map(([t, d, ic, fn]) => h('button', { class: 'qcard', onclick: fn }, IC(ic), h('div', {}, h('b', { text: t }), h('span', { text: d }))))));
   let list = [];
@@ -205,14 +259,15 @@ async function renderHome() {
   const body = list.length ? h('table', { class: 'grid recent' },
     h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: 'Name' }), h('th', { text: 'Folder' }), h('th', { text: 'Size' }))),
     h('tbody', {}, list.map((x) => h('tr', { onclick: async () => { try { await openFiles(false, [await window.host.recentOpen(x.id)]); } catch (e) { toast('Cannot open: ' + (e.message || e)); } } },
-      h('td', {}, h('button', { class: 'star' + (x.star ? ' on' : ''), title: 'Star', text: x.star ? '\u2605' : '\u2606', onclick: async (e) => { e.stopPropagation(); await window.host.recentStar(x.id); renderHome(); } })),
-      h('td', {}, h('b', { text: x.name }), h('div', { class: 'muted', text: fmtDate(x.mtime) })),
+      h('td', {}, h('button', { class: 'star' + (x.star ? ' on' : ''), title: 'Star', 'aria-label': 'Star', 'aria-pressed': String(!!x.star), onclick: async (e) => { e.stopPropagation(); await window.host.recentStar(x.id); renderHome(); } }, mi(x.star ? 'star' : 'starO'))),
+      h('td', {}, h('button', { class: 'rname', type: 'button', onclick: (e) => { e.stopPropagation(); e.currentTarget.closest('tr').click(); } }, h('b', { text: x.name })), h('div', { class: 'muted', text: fmtDate(x.mtime) })),
       h('td', { class: 'muted', text: x.dir }), h('td', { class: 'muted', text: fmtSize(x.size) })))))
-    : h('div', { class: 'home-empty' }, h('b', { text: homeTab === 'starred' ? 'No starred files yet' : 'No recent files yet' }), h('span', { text: 'Files you open will appear here. Click the star to keep one handy.' }));
-  home.append(nav, h('div', { class: 'home-main' },
-    h('h2', { text: 'Quick tools' }), quick,
+    : h('div', { class: 'home-empty' }, mi('doc', 40), h('b', { text: homeTab === 'starred' ? 'No starred files yet' : 'No recent files yet' }), h('span', { text: 'Files you open will appear here. Click the star to keep one handy.' }));
+  home.append(nav, h('main', { class: 'home-main' }, h('div', { class: 'home-in' },
+    h('div', { class: 'home-hero' }, h('h1', { text: 'What would you like to do with a PDF?' }), h('p', { class: 'hlead', text: 'Everything stays on this computer. Nothing is uploaded.' })),
     h('div', { class: 'home-head' }, h('h2', { text: homeTab === 'starred' ? 'Starred files' : 'Recent files' }), list.length && homeTab === 'recent' ? btn('Clear list', async () => { await window.host.recentClear(); renderHome(); }) : null),
-    body));
+    body,
+    h('div', { class: 'home-head' }, h('h2', { text: 'Quick tools' })), quick)));
 }
 
 // ---------- page model ----------
@@ -437,15 +492,24 @@ async function renderPage(el, p) {
   el.append(makeOverlay(p));
 }
 let leftMode = 'pages';
+// panel header: a title and a button that hides the panel (the grip beside it, now focused, brings it back)
+function panelHead(side, title) {
+  const b = h('button', { class: 'pbtn', type: 'button', title: 'Hide panel', 'aria-label': 'Hide panel', onclick: () => {
+    const wb = document.querySelector('.wbs .wb[data-id=' + side + ']'); if (wb) wb.click();
+    requestAnimationFrame(() => requestAnimationFrame(() => { const g = document.querySelector('.grip[data-side=' + side + ']'); if (g) g.focus(); }));
+  } }, mi(side === 'left' ? 'left' : 'right'));
+  return h('div', { class: 'phead' }, h('h2', { class: 'ptitle', text: title }), b);
+}
 function renderThumbs() {
   left.textContent = '';
   thumbEls.clear();
-  left.append(h('div', { class: 'ptools modes' }, h('button', { class: 'btn' + (leftMode === 'pages' ? ' on' : ''), text: 'Pages', onclick: () => { leftMode = 'pages'; renderThumbs(); } }), h('button', { class: 'btn' + (leftMode === 'marks' ? ' on' : ''), text: 'Bookmarks', onclick: () => { leftMode = 'marks'; renderThumbs(); } })));
+  left.append(panelHead('left', leftMode === 'marks' ? 'Bookmarks' : 'Pages'));
+  left.append(h('div', { class: 'ptools modes', role: 'group' }, h('button', { class: 'btn' + (leftMode === 'pages' ? ' on' : ''), 'aria-pressed': String(leftMode === 'pages'), text: 'Pages', onclick: () => { leftMode = 'pages'; renderThumbs(); } }), h('button', { class: 'btn' + (leftMode === 'marks' ? ' on' : ''), 'aria-pressed': String(leftMode === 'marks'), text: 'Bookmarks', onclick: () => { leftMode = 'marks'; renderThumbs(); } })));
   if (leftMode === 'marks' && X.marksPanel) { X.marksPanel(left); return; }
   const tools = h('div', { class: 'ptools' },
     btn('Rotate L', () => pageOp('rotL')), btn('Rotate R', () => pageOp('rotR')), btn('Delete', () => pageOp('del')), btn('Copy', () => pageOp('dup')),
     btn('Up', () => pageOp('up')), btn('Down', () => pageOp('down')), btn('Blank', () => pageOp('blank')), btn('Extract', () => extractSel()));
-  left.append(h('h3', { text: 'Pages' }), tools);
+  left.append(tools);
   pages.forEach((p, i) => {
     const c = h('canvas');
     const t = h('div', { class: 'thumb' + (sel.has(p.id) ? ' sel' : ''), onclick: (e) => thumbClick(e, p, i) }, c, h('span', { text: String(i + 1) }));
@@ -484,6 +548,8 @@ function setZoom(z) { zoom = clamp(z, 0.25, 5); const top = stage.scrollTop / (s
 function fitWidth() { if (!pages.length) return; const [bw] = shownSize({ ...pages[curPage], rot: pages[curPage].rot }); setZoom(zoom * (stage.clientWidth - 48) / bw); }
 function renderStatus() {
   status.textContent = '';
+  docName.textContent = fileName || ''; docName.title = fileName || '';
+  zPct.textContent = pages.length ? Math.round(zoom * 100) + '%' : '';
   status.append(h('span', { text: fileName || 'No file' }), h('span', { class: 'grow' }), h('span', { text: pages.length ? `Page ${curPage + 1} of ${pages.length}` : '' }), h('span', { text: Math.round(zoom * 100) + '%' }));
 }
 
@@ -1057,7 +1123,7 @@ function markHits(tl, p) {
 // ---------- right panel ----------
 async function renderRight() {
   right.textContent = '';
-  right.append(h('h3', { text: 'Document' }));
+  right.append(panelHead('right', 'Details'), h('h3', { text: 'Document' }));
   const t = h('input', { type: 'text', value: meta.title, oninput: () => (meta.title = t.value) });
   const a = h('input', { type: 'text', value: meta.author, oninput: () => (meta.author = a.value) });
   right.append(h('div', { class: 'col' }, h('label', { class: 'field' }, 'Title', t), h('label', { class: 'field' }, 'Author', a), h('div', { class: 'muted', text: `${pages.length} pages` })));

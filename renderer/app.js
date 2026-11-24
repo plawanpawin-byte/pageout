@@ -2,7 +2,7 @@ import * as pdfjs from './vendor/pdf.min.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
 import { tr, getLang, setLang } from './i18n.js';
 import { initExtra } from './extra.js';
-const { PDFDocument, rgb, degrees, StandardFonts } = window.PDFLib;
+const { PDFDocument, rgb, degrees, StandardFonts, PDFName, PDFDict, PDFRef, PDFArray, PDFHexString, PDFObjectCopier } = window.PDFLib;
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -21,7 +21,9 @@ const svgNS = 'http://www.w3.org/2000/svg';
 const sv = (tag, attrs = {}) => { const e = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const uid = () => Math.random().toString(36).slice(2, 10);
-const toast = (msg) => { const t = h('div', { class: 'toast', text: String(msg) }); document.body.append(t); setTimeout(() => t.remove(), 2600); };
+// errors from the main process arrive as "Error invoking remote method 'x': Error: <message>": show only the message
+const cleanErr = (s) => String(s).replace(/Error invoking remote method '[^']*': (?:\w*Error: )?/g, '');
+const toast = (msg) => { const s = cleanErr(msg); const t = h('div', { class: 'toast', text: s }); document.body.append(t); setTimeout(() => t.remove(), Math.min(9000, Math.max(2600, s.length * 55))); };
 
 // ---------- state ----------
 const sources = new Map();          // id -> {name, bytes, pdf}
@@ -319,9 +321,15 @@ async function addSource(name, bytes) {
       const t = f.constructor.name;
       // the bundled pdf-lib is minified, so class names are unreliable: detect the field type by what it can do
       const kind = typeof f.setText === 'function' ? 'text' : typeof f.check === 'function' ? 'check' : typeof f.isOffToggleable === 'function' ? 'radio' : (typeof f.isEditable === 'function' || typeof f.isMultiselect === 'function') ? 'choice' : (/TextField/.test(t) ? 'text' : /CheckBox/.test(t) ? 'check' : null);
-      return kind ? { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] } : null;
+      if (!kind) return null;
+      // the value already in the file, so the panel shows it and Save as keeps it
+      let v;
+      try { v = kind === 'text' ? (f.getText() || '') : kind === 'check' ? f.isChecked() : [].concat(f.getSelected() || [])[0] || ''; } catch { v = kind === 'check' ? false : ''; }
+      ent.vals[f.getName()] = v;
+      return { name: f.getName(), kind, options: f.getOptions ? f.getOptions() : [] };
     }).filter(Boolean);
   } catch {}
+  ent.vals0 = { ...ent.vals };
   return id;
 }
 async function pagesOf(srcId) {
@@ -425,7 +433,7 @@ const snapReplacer = (k, v) => {
 };
 const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
-const stamp = () => snapshot() + JSON.stringify([outline, meta]);   // what counts as unsaved work
+const stamp = () => snapshot() + JSON.stringify([outline, meta, [...sources.values()].map((e) => e.vals)]);   // what counts as unsaved work (pages, bookmarks, properties, form values)
 const isDirty = () => pages.length > 0 && stamp() !== savedSnap;
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
@@ -1165,19 +1173,14 @@ async function renderRight() {
 async function applyForm(srcId) {
   const ent = sources.get(srcId);
   try {
-    const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
-    const form = d.getForm();
-    for (const f of ent.fields) {
-      const v = ent.vals[f.name]; if (v === undefined || v === '') continue;
-      const fld = form.getField(f.name);
-      if (f.kind === 'text') fld.setText(String(v));
-      else if (f.kind === 'check') (v ? fld.check() : fld.uncheck());
-      else fld.select(v);
-    }
-    form.flatten();
-    const bytes = new Uint8Array(await d.save());
-    ent.pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
-    ent.bytes = bytes; ent.fields = []; ent.vals = {};
+    const d = (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+    d.getForm().flatten({ updateFieldAppearances: false });
+    const bytes = new Uint8Array(await d.save({ updateFieldAppearances: false }));
+    const pdf = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
+    // the filled pages come from a new source, so Undo brings the fillable form back
+    const nid = uid(); commit();
+    sources.set(nid, { name: ent.name, bytes, pdf, fields: [], vals: {}, vals0: {} });
+    for (const p of pages) if (p.src === srcId) p.src = nid;
     fullRender(); toast('Form filled');
   } catch (e) { toast('Form fill failed: ' + (e.message || e)); }
 }
@@ -1301,6 +1304,62 @@ function addLinksAndOutline(out, list, outPages, linkJobs) {
   c.assign(root, c.obj({ Type: 'Outlines', First: top[0].ref, Last: top[top.length - 1].ref, Count: top.length + top.reduce((s, n) => s + count(n), 0) }));
   out.catalog.set(PDFName.of('Outlines'), root);
 }
+// form values edited in the panel, written into a copy of the source; the fields stay fillable
+async function withFormValues(ent) {
+  const changed = (ent.fields || []).filter((f) => ent.vals[f.name] !== (ent.vals0 || {})[f.name]);
+  if (!changed.length) return null;
+  const d = await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
+  const form = d.getForm(); const fonts = {};
+  const fontFor = async (s) => {
+    const k = THAI.test(s) ? 'thai' : winAnsi(s) !== s ? 'uni' : null;
+    if (!k) return null;
+    if (!fonts[k]) {
+      d.registerFontkit(window.fontkit);
+      const b = k === 'thai' ? await getThaiBytes() : new Uint8Array(await (await fetch('./vendor/fonts/NotoSans-Regular.ttf')).arrayBuffer());
+      fonts[k] = await d.embedFont(b, { subset: false });
+    }
+    return fonts[k];
+  };
+  for (const f of changed) {
+    const v = ent.vals[f.name];
+    try {
+      const fld = form.getField(f.name);
+      if (f.kind === 'text') {
+        const s = String(v == null ? '' : v); fld.setText(s);
+        fld.updateAppearances((await fontFor(s)) || (fonts.latin = fonts.latin || await d.embedFont(StandardFonts.Helvetica)));
+        // a UTF-16 value, so Thai and other non-Latin text reads back correctly in every viewer
+        fld.acroField.dict.set(PDFName.of('V'), PDFHexString.fromText(s));
+      } else if (f.kind === 'check') { if (v) fld.check(); else fld.uncheck(); fld.updateAppearances(); }
+      else {
+        if (v) fld.select(v); else if (fld.clear) fld.clear();
+        if (f.kind === 'radio') fld.updateAppearances();
+        else fld.updateAppearances((await fontFor(String(v || ''))) || (fonts.latin = fonts.latin || await d.embedFont(StandardFonts.Helvetica)));
+      }
+    } catch (e) { console.warn('form value not saved', f.name, e); }
+  }
+  // only the changed fields get new appearances; the others keep the ones in the file
+  return PDFDocument.load(await d.save({ updateFieldAppearances: false }), { ignoreEncryption: true });
+}
+// copyPages brings the field widgets but not the document's form list: add their fields to the output /AcroForm
+function keepFormFields(out, page, src) {
+  const annots = page.node.Annots(); if (!annots) return;
+  const roots = [];
+  for (let i = 0; i < annots.size(); i++) {
+    const ref = annots.get(i); const a = ref instanceof PDFRef ? out.context.lookup(ref, PDFDict) : null;
+    if (!a || a.get(PDFName.of('Subtype')) !== PDFName.of('Widget')) continue;
+    let top = ref, cur = a;
+    for (let k = 0; k < 32; k++) { const par = cur.get(PDFName.of('Parent')); if (!(par instanceof PDFRef)) break; top = par; cur = out.context.lookup(par, PDFDict); if (!cur) break; }
+    if (cur && cur.get(PDFName.of('T')) && !roots.includes(top)) roots.push(top);
+  }
+  if (!roots.length) return;
+  const af = out.getForm().acroForm, have = af.dict.lookupMaybe(PDFName.of('Fields'), PDFArray);
+  for (const r of roots) if (!have || !have.asArray().includes(r)) af.addField(r);
+  const srcAF = src.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
+  if (srcAF) {
+    const cp = PDFObjectCopier.for(src.context, out.context);
+    for (const k of ['DA', 'DR', 'Q']) { const v = srcAF.get(PDFName.of(k)); if (v && !af.dict.get(PDFName.of(k))) af.dict.set(PDFName.of(k), cp.copy(v)); }
+  }
+}
 async function buildPdf(list, enc, opts) {
   const out = await PDFDocument.create(opts && opts.noMeta ? { updateMetadata: false } : undefined);
   const font = await out.embedFont(StandardFonts.Helvetica);
@@ -1319,9 +1378,10 @@ async function buildPdf(list, enc, opts) {
       page = out.addPage([rw, rh]); page.drawImage(img, { x: 0, y: 0, width: rw, height: rh });
       q = { ...p, w: rw, h: rh, r0: 0 };
     } else {
-      if (!cache.has(p.src)) cache.set(p.src, await PDFDocument.load(sources.get(p.src).bytes, { ignoreEncryption: true }));
+      if (!cache.has(p.src)) { const ent = sources.get(p.src); cache.set(p.src, (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true })); }
       [page] = await out.copyPages(cache.get(p.src), [p.index]);
       out.addPage(page);
+      keepFormFields(out, page, cache.get(p.src));
     }
     const base = page.getRotation().angle;
     const box = p.src && !redacts.length ? page.getCropBox() : { x: 0, y: 0, width: q.w, height: q.h };
@@ -1401,7 +1461,8 @@ async function buildPdf(list, enc, opts) {
     out.encrypt({ userPassword: enc.user || '', ownerPassword: enc.owner || rnd,
       permissions: { printing: enc.print ? 'highResolution' : false, copying: !!enc.copy, modifying: !!enc.edit, annotating: !!enc.edit, fillingForms: !!enc.edit, contentAccessibility: true, documentAssembly: !!enc.edit } });
   }
-  return await out.save(opts && opts.save ? opts.save : undefined);
+  // never regenerate appearances of fields copied from the source (that would fail on Thai values and change their look)
+  return await out.save({ updateFieldAppearances: false, ...(opts && opts.save ? opts.save : {}) });
 }
 async function save() {
   if (!pages.length) return;
@@ -1410,7 +1471,7 @@ async function save() {
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
     if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name); }
-  } catch (e) { toast('Save failed: ' + (e.message || e)); }
+  } catch (e) { const m = cleanErr(e.message || e); toast(/^(Cannot save|บันทึก)/.test(m) ? m : 'Save failed: ' + m); }
 }
 
 let savedSnap = null;
@@ -1423,7 +1484,7 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });

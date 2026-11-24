@@ -28,10 +28,13 @@ export function initPages(X, c) {
     const out = await PDFDocument.create(); const cache = new Map(); const info = [];
     for (let i = 0; i < entries.length; i++) {
       const p = entries[i];
-      if (!cache.has(p.src)) cache.set(p.src, await PDFDocument.load(c.sources.get(p.src).bytes, { ignoreEncryption: true }));
+      if (!cache.has(p.src)) { const ent = c.sources.get(p.src); cache.set(p.src, (await c.withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true })); }
+      const n0 = out.getPageCount();
       info[i] = await build(out, cache.get(p.src), p, i);
+      // keep form fields (and their current values) on the rebuilt pages
+      for (const pg of out.getPages().slice(n0)) c.keepFormFields(out, pg, cache.get(p.src));
     }
-    const bytes = new Uint8Array(await out.save());
+    const bytes = new Uint8Array(await out.save({ updateFieldAppearances: false }));
     const id = await c.addSource(c.fileName || 'document.pdf', bytes); const ps = await c.pagesOf(id);
     entries.forEach((p, i) => { after(p, info[i]); p.src = id; p.index = i; p.w = ps[i].w; p.h = ps[i].h; p.r0 = ps[i].r0; });
   }

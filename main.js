@@ -86,6 +86,23 @@ ipcMain.handle('file:open', async (_e, opts = {}) => {
   return out;
 });
 
+// write through a temporary file next to the target and swap it in, so a failed save never leaves half a file;
+// errors come back as one plain sentence (the page shows it as is)
+function writeSafe(p, data) {
+  const tmp = p + '.pdfout-' + process.pid + '.tmp';
+  try { fs.writeFileSync(tmp, Buffer.from(data)); fs.renameSync(tmp, p); }
+  catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    const th = uiLang === 'th', n = path.basename(p), c = e && e.code;
+    let m;
+    if (c === 'EPERM' || c === 'EACCES' || c === 'EBUSY') m = th ? `บันทึก "${n}" ไม่ได้ ไฟล์นี้เป็นแบบอ่านอย่างเดียวหรือเปิดอยู่ในโปรแกรมอื่น ลองตั้งชื่อใหม่หรือปิดไฟล์นั้นก่อน` : `Cannot save "${n}": the file is read-only or open in another program. Choose another name, or close it there first.`;
+    else if (c === 'ENOSPC') m = th ? `บันทึก "${n}" ไม่ได้ พื้นที่ดิสก์เต็ม` : `Cannot save "${n}": the disk is full.`;
+    else if (c === 'ENAMETOOLONG' || c === 'ENOENT') m = th ? `บันทึก "${n}" ไม่ได้ ชื่อหรือที่อยู่ของไฟล์ยาวเกินไป หรือไม่มีโฟลเดอร์นี้` : `Cannot save "${n}": the name or folder path is too long, or the folder does not exist.`;
+    else m = (th ? `บันทึก "${n}" ไม่ได้: ` : `Cannot save "${n}": `) + ((e && e.message) || e);
+    throw new Error(m);
+  }
+}
+
 function safeName(n) {
   const t = String(n || 'untitled').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/^[ .]+|[ .]+$/g, '');
   return /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(t) || !t ? '_' + t : t;
@@ -96,7 +113,7 @@ ipcMain.handle('file:save', async (_e, opts = {}) => {
     defaultPath: safeName(opts.name), filters: filters(opts.filters),
   });
   if (r.canceled || !r.filePath) return null;
-  if (opts.data) fs.writeFileSync(r.filePath, Buffer.from(opts.data));
+  if (opts.data) writeSafe(r.filePath, opts.data);
   return { id: grant(r.filePath), name: path.basename(r.filePath) };
 });
 
@@ -105,7 +122,7 @@ ipcMain.handle('file:saveSeq', async (_e, opts = {}) => {
   const r = await dialog.showSaveDialog(win, { defaultPath: safeName(opts.name || 'page.png'), filters: [{ name: 'PNG image', extensions: ['png'] }] });
   if (r.canceled || !r.filePath || !items.length) return 0;
   const base = r.filePath.replace(/\.[^.\\/]+$/, '');
-  items.forEach((b, i) => fs.writeFileSync(`${base}-${i + 1}.png`, Buffer.from(b)));
+  items.forEach((b, i) => writeSafe(`${base}-${i + 1}.png`, b));
   return items.length;
 });
 
@@ -119,7 +136,7 @@ ipcMain.handle('file:saveMany', async (_e, opts = {}) => {
     let nm = safeName(it.name), full = path.join(dir, nm), k = 2;
     const ext = path.extname(nm), stem = nm.slice(0, nm.length - ext.length);
     while (fs.existsSync(full)) full = path.join(dir, `${stem} (${k++})${ext}`);
-    fs.writeFileSync(full, Buffer.from(it.data)); count++;
+    writeSafe(full, it.data); count++;
   }
   return { dir: path.basename(dir), count };
 });
@@ -142,7 +159,7 @@ ipcMain.handle('file:openFolder', async (_e, opts = {}) => {
 });
 
 ipcMain.handle('file:write', async (_e, id, data) => {
-  fs.writeFileSync(pathOf(id), Buffer.from(data));
+  writeSafe(pathOf(id), data);
   return true;
 });
 

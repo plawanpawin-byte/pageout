@@ -4,7 +4,6 @@ import { modal, fld, note, sel as selectEl, num, txt, baseName, bytesOf } from '
 export function initDoc(X, c) {
   const { h, btn, toast } = c;
   const need = () => { if (!c.pages.length) { toast('Open a PDF first'); return false; } return true; };
-  const dirty = () => c.pages.length && c.stamp() !== c.savedSnap();
 
   // ---------- bookmarks ----------
   X.loadOutline = async () => {
@@ -177,7 +176,6 @@ export function initDoc(X, c) {
             const pgx = await doc.getPage(i), tc = await pgx.getTextContent(); pgx.cleanup(); const t = tc.items.map((it) => it.str).join(' '), low = t.toLowerCase(); let at = low.indexOf(needle), n = 0, first = at;
             while (at !== -1) { n++; at = low.indexOf(needle, at + needle.length); }
             if (n) { hits++; res.append(h('div', { class: 'hitrow', onclick: async () => {
-              if (dirty() && !confirm(c.tr('Open this file and close the current one without saving?'))) return;
               try { stop = true; const item = { name: f.name, data: bytesOf(await c.host.readFile(f.id)) }; document.querySelector('.modal-back') && document.querySelectorAll('.modal-back').forEach((e) => e.remove()); await c.loadFiles([item], false); setTimeout(() => c.gotoPage(i - 1), 400); } catch (e) { toast('Cannot open: ' + (e.message || e)); }
             } }, h('b', { text: `${f.rel || f.name}  ·  page ${i}${n > 1 ? ` (${n} matches)` : ''}` }), h('span', { text: '…' + t.slice(Math.max(0, first - 40), first + needle.length + 60).replace(/\s+/g, ' ') + '…' }))); }
           }

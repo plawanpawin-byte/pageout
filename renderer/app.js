@@ -390,15 +390,21 @@ async function loadFiles(files, merge) {
     let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data)));
     toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); return;
   }
-  if (!merge) { pages = []; sources.clear(); undoStack = []; redoStack = []; fileName = docs[0].name.replace(IMG_RE, '.pdf'); lastSave = null; outline = []; }
+  // replacing the open document: ask first when it has unsaved changes
+  if (!merge && isDirty() && !confirm(tr('Open this file and close the current one without saving?'))) return;
+  // load into new sources first; the open document is only replaced once at least one file opened
+  const before = new Set(sources.keys()), added = []; let firstName = '';
   for (const f of docs) {
     try {
       let bytes = toBytes(f.data);
       if (IMG_RE.test(f.name)) bytes = await imageToPdf(bytes, /\.jpe?g$/i.test(f.name));
       const sid = await addSource(f.name.replace(IMG_RE, '.pdf'), bytes);
-      pages.push(...await pagesOf(sid));
+      added.push(...await pagesOf(sid)); if (!firstName) firstName = f.name.replace(IMG_RE, '.pdf');
     } catch (e) { toast(`Cannot open ${f.name}: ${e.message || e}`); }
   }
+  if (!added.length) { for (const k of [...sources.keys()]) if (!before.has(k)) sources.delete(k); return; }
+  if (merge) { commit(); pages.push(...added); }
+  else { for (const k of before) sources.delete(k); pages = added; undoStack = []; redoStack = []; fileName = firstName; lastSave = null; outline = []; }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
   sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = stamp(); }, 0);
   for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
@@ -420,6 +426,7 @@ const snapReplacer = (k, v) => {
 const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
 const stamp = () => snapshot() + JSON.stringify([outline, meta]);   // what counts as unsaved work
+const isDirty = () => pages.length > 0 && stamp() !== savedSnap;
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }

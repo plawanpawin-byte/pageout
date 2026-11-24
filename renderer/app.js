@@ -434,7 +434,10 @@ const snapReplacer = (k, v) => {
 };
 const snapReviver = (k, v) => (typeof v === 'string' && v.startsWith('\u0001blob:') ? blobList[+v.slice(6)] : v);
 const snapshot = () => JSON.stringify(pages.map((p) => ({ ...p })), snapReplacer);
-const stamp = () => snapshot() + JSON.stringify([outline, meta, [...sources.values()].map((e) => e.vals), protectOpts]);   // what counts as unsaved work (pages, bookmarks, properties, form values, password)
+// what counts as unsaved work (pages, bookmarks, properties, form values, password).
+// Only the form values of files that pages still use: a file added by Combine or Fill form into page stays
+// in sources after Undo, and must not make an undone document look changed.
+const stamp = () => snapshot() + JSON.stringify([outline, meta, [...new Set(pages.map((p) => p.src).filter(Boolean))].map((id) => (sources.get(id) || {}).vals), protectOpts]);
 const isDirty = () => pages.length > 0 && stamp() !== savedSnap;
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; updateButtons(); }
 function restore(s) { pages = JSON.parse(s, snapReviver); sel = new Set([...sel].filter((id) => pages.some((p) => p.id === id))); selAnn = null; fullRender(); }

@@ -871,14 +871,17 @@ function openOcr() {
   const go = btn('Start OCR', async () => {
     if (busy) return; busy = true; ocrStop = false; go.disabled = true;
     const idx = scope.value === 'cur' ? [curPage] : pages.map((_, i) => i);
-    commit(); const done = [];
+    // the undo step is made only when a page really changes, so a scan with no text (or a failed run) adds none
+    const done = []; let changed = false;
     try {
       for (let k = 0; k < idx.length; k++) {
         if (ocrStop) break;
         msg.textContent = `Reading page ${idx[k] + 1} (${k + 1} of ${idx.length})...`;
         bar.firstChild.style.width = Math.round((k / idx.length) * 100) + '%';
         const r = await ocrPage(pages[idx[k]], lang.value, (m) => { if (m.status === 'recognizing text') bar.firstChild.style.width = Math.round(((k + m.progress) / idx.length) * 100) + '%'; });
-        pages[idx[k]].ocr = r; done.push(idx[k]);
+        const pg = pages[idx[k]];
+        if ((r && r.lines.length) || pg.ocr) { if (!changed) { commit(); changed = true; } pg.ocr = r; }
+        done.push(idx[k]);
       }
     } catch (e) { toast('OCR failed: ' + (e.message || e)); }
     busy = false; if (back.isConnected) { back.remove(); } if (done.length) { renderStatus(); showOcrResult(done); }

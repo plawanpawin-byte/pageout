@@ -101,6 +101,8 @@
 .ptools.modes{display:flex;gap:6px;margin-bottom:8px}
 .ptools.modes .btn{flex:1;border-radius:8px}
 .app .sidebar{overflow-x:hidden}
+label.field>input:is([type=checkbox],[type=radio]){width:auto;flex:none;margin:0}
+label.field:has(>input:is([type=checkbox],[type=radio])){justify-content:flex-start;color:var(--text);font-size:14px;min-height:32px}
 .app .sidebar .ptools{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .app .sidebar .ptools .btn{min-width:0;padding-left:8px;padding-right:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .app .sidebar .ptools.modes .btn:not(.on){background:transparent;border:1px solid var(--line-2)}

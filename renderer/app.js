@@ -420,8 +420,10 @@ async function loadFiles(files, merge) {
   if (merge) { commit(); pages.push(...added); }
   else { for (const k of before) sources.delete(k); pages = added; undoStack = []; redoStack = []; fileName = firstName; lastSave = null; outline = []; protectOpts = null; }
   if (!merge && pages.length) { const first = [...sources.values()][0]; try { const m = await first.pdf.getMetadata(); meta = { title: m.info?.Title || '', author: m.info?.Author || '', subject: m.info?.Subject || '', keywords: m.info?.Keywords || '' }; } catch { meta = { title: '', author: '' }; } if (X.loadOutline) { try { await X.loadOutline(); } catch {} } }
-  sel.clear(); curPage = 0; selAnn = null; if (!merge) setTimeout(() => { savedSnap = stamp(); }, 0);
-  for (const f of forms) applyFormData(parseFormData(f.name, toBytes(f.data)));
+  // form data opened with the PDF is a change to the file: fill it in after the saved state is taken
+  const fillForms = () => { let n = 0; for (const f of forms) n += applyFormData(parseFormData(f.name, toBytes(f.data))); if (forms.length) { toast(n ? `Filled ${n} form field${n > 1 ? 's' : ''} from the file` : 'No matching form fields were found'); renderRight(); } };
+  sel.clear(); curPage = 0; selAnn = null;
+  if (!merge) setTimeout(() => { savedSnap = stamp(); fillForms(); }, 0); else fillForms();
   fullRender();
 }
 async function openFiles(merge, preset) {

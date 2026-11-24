@@ -381,13 +381,18 @@ function parseFormData(name, bytes) {
   }
   return out;
 }
+// fills the files the pages actually use (after Combine, Undo or a page tool, sources can hold files no page shows)
 function applyFormData(map) {
-  const ent = [...sources.values()][0]; if (!ent) return 0;
+  const live = [...new Set(pages.map((p) => p.src).filter(Boolean))].map((id) => sources.get(id)).filter((e) => e && e.fields);
   let n = 0;
   for (const [k, v] of Object.entries(map)) {
-    const f = ent.fields.find((x) => x.name === k) || ent.fields.find((x) => k.endsWith('.' + x.name) || x.name.endsWith('.' + k));
-    if (!f) continue;
-    ent.vals[f.name] = f.kind === 'check' ? /^(yes|on|true|1)$/i.test(v) : v; n++;
+    let hit = false;
+    for (const ent of live) {
+      const f = ent.fields.find((x) => x.name === k) || ent.fields.find((x) => k.endsWith('.' + x.name) || x.name.endsWith('.' + k));
+      if (!f) continue;
+      ent.vals[f.name] = f.kind === 'check' ? /^(yes|on|true|1)$/i.test(v) : v; hit = true;
+    }
+    if (hit) n++;
   }
   return n;
 }

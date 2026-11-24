@@ -152,6 +152,8 @@ export const TH = {
 // sentences that carry numbers or names
 const pl = (n, w) => w;
 export const RULES = [
+  [/^Saved (.+?)\. These form fields could not be written: (.+)$/, (a, b) => `บันทึก ${a} แล้ว แต่เขียนค่าลงในช่องฟอร์มเหล่านี้ไม่ได้: ${b}`],
+  [/^Form filled\. These form fields could not be written: (.+)$/, (a) => `กรอกฟอร์มแล้ว แต่เขียนค่าลงในช่องฟอร์มเหล่านี้ไม่ได้: ${a}`],
   [/^(\d+) sideways or upside-down pieces of text were not checked\. Look at the pages yourself\.$/, (a) => `ข้อความที่เอียงหรือกลับหัว ${a} ส่วนไม่ได้ถูกตรวจ โปรดดูหน้าด้วยตัวเอง`],
   [/^Page (\d+) of (\d+)$/, (a, b) => `หน้า ${a} จาก ${b}`],
   [/^Page (\d+)$/, (a) => `หน้า ${a}`],

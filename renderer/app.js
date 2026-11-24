@@ -1181,7 +1181,7 @@ async function renderRight() {
   right.append(h('h3', { text: 'Privacy' }), h('div', { class: 'muted', text: 'Files are processed on this computer only. Nothing is uploaded.' }));
 }
 async function applyForm(srcId) {
-  const ent = sources.get(srcId);
+  const ent = sources.get(srcId); formFails = [];
   try {
     const d = (await withFormValues(ent)) || await PDFDocument.load(ent.bytes, { ignoreEncryption: true });
     await fillMissingAppearances(d);
@@ -1192,7 +1192,7 @@ async function applyForm(srcId) {
     const nid = uid(); commit();
     sources.set(nid, { name: ent.name, bytes, pdf, fields: [], vals: {}, vals0: {} });
     for (const p of pages) if (p.src === srcId) p.src = nid;
-    fullRender(); toast('Form filled');
+    fullRender(); toast('Form filled' + failNote());
   } catch (e) { toast('Form fill failed: ' + (e.message || e)); }
 }
 async function pdfToJpegPdf(bytes, q, scale) {
@@ -1370,7 +1370,7 @@ async function withFormValues(ent) {
         if (f.kind === 'radio') fld.updateAppearances();
         else fld.updateAppearances((await fontFor(String(v || ''))) || (fonts.latin = fonts.latin || await d.embedFont(StandardFonts.Helvetica)));
       }
-    } catch (e) { console.warn('form value not saved', f.name, e); }
+    } catch (e) { console.warn('form value not saved', f.name, e); if (!formFails.includes(f.name)) formFails.push(f.name); }
   }
   // only the changed fields get new appearances; the others keep the ones in the file
   return PDFDocument.load(await d.save({ updateFieldAppearances: false }), { ignoreEncryption: true });
@@ -1397,6 +1397,7 @@ function keepFormFields(out, page, src) {
   }
 }
 async function buildPdf(list, enc, opts) {
+  formFails = [];
   const out = await PDFDocument.create(opts && opts.noMeta ? { updateMetadata: false } : undefined);
   const font = await out.embedFont(StandardFonts.Helvetica);
   const F = { latin: font, thai: null, bold: await out.embedFont(StandardFonts.HelveticaBold) };
@@ -1506,7 +1507,7 @@ async function save() {
     const bytes = await buildPdf(pages, protectOpts);
     const name = fileName ? fileName.replace(/\.pdf$/i, '') + '-edited.pdf' : 'document.pdf';
     const r = await window.host.saveFile({ name, filters: [['PDF', ['pdf']]], data: bytes });
-    if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name); }
+    if (r) { savedSnap = stamp(); lastSave = r; toast('Saved ' + r.name + failNote()); }
   } catch (e) { const m = cleanErr(e.message || e); toast(/^(Cannot save|บันทึก)/.test(m) ? m : 'Save failed: ' + m); }
 }
 
@@ -1520,7 +1521,7 @@ initExtra(X, {
   get outline() { return outline; }, set outline(v) { outline = v; },
   get zoom() { return zoom; }, get tool() { return tool; }, get color() { return color; }, get strokeW() { return strokeW; },
   commit, fullRender, redrawOverlays, renderRight, renderStatus, renderThumbs, renderStage, drawRibbon, mkAnn, dispDims, dispToPdf, rotFwd, rotInv,
-  buildPdf, withFormValues, keepFormFields, fillMissingAppearances,linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
+  buildPdf, withFormValues, keepFormFields, fillMissingAppearances, failNote, linesFor, lineCache, pageCanvas, addSource, pagesOf, loadFiles, openFiles, scrollToPage, setTool, setZoom, fitWidth, getThaiBytes,
   drawMixed, mixedWidth, hex, THAI, winAnsi, zipStore, crc32, xmlEsc, pdfToJpegPdf, snapshot, stamp, openOcr, shownSize, askPassword, imageToPdf, sampleColors, rasterPage, dropCommit() { undoStack.pop(); updateButtons(); }, get protectOpts() { return protectOpts; },
   markSaved() { savedSnap = stamp(); }, savedSnap: () => savedSnap, printDoc, showLeft(m) { leftMode = m; renderThumbs(); }, gotoPage(i) { scrollToPage(i); },
 });

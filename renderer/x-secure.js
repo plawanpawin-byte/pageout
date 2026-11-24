@@ -4,7 +4,7 @@ import { modal, fld, note, sel as selectEl, txt, baseName, todayStr, bytesOf } f
 export function initSecure(X, c) {
   const { h, btn, toast } = c;
   const need = () => { if (!c.pages.length) { toast('Open a PDF first'); return false; } return true; };
-  const saveBytes = async (suffix, bytes) => { const r = await c.host.saveFile({ name: baseName(c.fileName || 'document') + suffix, filters: [['PDF', ['pdf']]], data: bytes }); if (r) toast('Saved ' + r.name); return r; };
+  const saveBytes = async (suffix, bytes) => { const r = await c.host.saveFile({ name: baseName(c.fileName || 'document') + suffix, filters: [['PDF', ['pdf']]], data: bytes }); if (r) toast('Saved ' + r.name + c.failNote()); return r; };
 
   // ---------- clean metadata ----------
   X.sanitize = () => {
